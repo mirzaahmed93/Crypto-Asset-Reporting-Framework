@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  blockchain-carf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blockchain-carf-framework
+    
+    # Environment variables
+    env_file:
+      - .env
+    
+    # Volume mounts for persistent data and secure key storage
+    volumes:
+      - ./data:/data
+      - ./vault:/vault:ro  # Read-only for encryption keys
+      - ./src:/app/src:ro  # Read-only application code
+    
+    # Network isolation
+    networks:
+      - carf-network
+    
+    # Resource limits (adjust based on workload)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Read-only root filesystem (except for writable volumes)
+    read_only: true
+    tmpfs:
+      - /tmp
+    
+    # User namespace (non-root)
+    user: "1000:1000"
+    
+    # Command to run (example)
+    command: ["python", "examples/usage_example.py"]
+
+networks:
+  carf-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  data:
+    driver: local
+  vault:
+    driver: local

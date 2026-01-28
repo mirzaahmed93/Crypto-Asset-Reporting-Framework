@@ -1,0 +1,24 @@
+# Core dependencies
+langchain>=0.1.0
+langchain-community>=0.0.10
+
+# Blockchain and web3
+requests>=2.31.0
+eth-abi>=4.0.0
+
+# Data processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Cryptography and privacy
+cryptography>=41.0.0
+
+# Timezone handling
+pytz>=2023.3
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Optional: Real LLM providers (uncomment as needed)
+# langchain-openai>=0.0.2
+# langchain-anthropic>=0.1.1
