@@ -1,350 +1,149 @@
-# Blockchain CARF Framework
+# Blockchain CARF Framework - Research Notebook
 
-**AI-Driven ETL Pipeline for HMRC's Crypto-Asset Reporting Framework (CARF)**
+**AI-Driven Analysis for HMRC's Crypto-Asset Reporting Framework (CARF)**
 
-A modular, Dockerized Python framework for blockchain data engineering with built-in UK Government compliance, GDPR-compliant privacy protection, and AI-powered query capabilities.
-
----
-
-## 🚀 Features
-
-### 🤖 **AI Orchestration with LangChain**
-- Natural language query processing (e.g., *"Find all ETH transfers over £10k"*)
-- Complete audit trail for regulatory oversight
-- Explainable AI reasoning for transaction flagging
-
-### 🔗 **Multi-Provider Blockchain Data**
-- **Blockchain.com API**: Multi-chain support (BTC, ETH, SOL, ADA, DOGE, etc.)
-- **Blockbook API**: Self-hostable, unified API across chains
-- Automatic pagination and rate limiting
-- Configurable failover between providers
-
-### 🔐 **GDPR-Compliant Privacy Protection**
-- **AES-256 Encryption**: Secure PII storage with Fernet
-- **Salted SHA-256 Pseudonymization**: Internal analysis without exposing wallet addresses
-- **Cryptographic Erasure**: "Right to be forgotten" compliance
-- Separate vault storage for encryption keys
-
-### 📊 **Advanced ETL Pipeline**
-- Smart contract decoding (ERC-20 transfers, DeFi interactions)
-- UK/London timezone normalization
-- Automated CARF risk scoring (£10,000 threshold)
-- Qualifying stablecoin classification
-
-### 📑 **HMRC Reporting**
-- Summary tables for qualifying vs. unbacked assets
-- CSV and Excel export formats
-- Tax year compliance (UK financial year: April 6 - April 5)
-- Audit-ready documentation
-
-### 🐳 **Production-Ready Docker Deployment**
-- Multi-stage build for minimal image size
-- Non-root user execution
-- Secure volume mounts for `/data` and `/vault`
-- GovCloud-compatible (Azure UK South, AWS eu-west-2)
+A streamlined Jupyter notebook demonstrating automated CARF compliance scoring for real Ethereum transactions with AI-powered querying capabilities.
 
 ---
 
-## 📦 Installation
+## 🚀 Quick Start
 
-### Prerequisites
-- **Python 3.11+**
-- **Docker & Docker Compose** (for containerized deployment)
-- **Git**
-
-### Local Installation
+### Option 1: Docker (Recommended)
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd blockchain-carf-framework
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your API keys and configuration
+cd /Users/ahmedmirza/.gemini/antigravity/scratch/blockchain-carf-framework
+./run-notebook.sh
 ```
 
-### Docker Installation
+Opens at **`http://localhost:8888`**
+
+### Option 2: Local Installation
 
 ```bash
-# Build the Docker image
-docker build -t blockchain-carf .
-
-# Run with docker-compose
-docker-compose up -d
+pip install jupyter pandas matplotlib seaborn requests transformers torch
+jupyter notebook CARF_Research_Report.ipynb
 ```
 
 ---
 
-## 🔧 Configuration
+## 📊 Features
 
-Edit `.env` file with your settings:
+### ✅ Real Blockchain Data
+- Fetches transactions using actual Ethereum addresses
+- Binance exchange wallets, USDC/USDT contracts, major DeFi protocols
+- Full 66-character transaction hashes for blockchain.com verification
 
-```bash
-# Blockchain Provider
-BLOCKCHAIN_PROVIDER=blockchain.com
-BLOCKCHAIN_COM_API_KEY=your_api_key_here
+### ✅ CARF Compliance Scoring
+- Automated £10,000 threshold detection
+- Qualifying stablecoin classification (USDT, USDC, DAI)
+- Risk score calculation (0-20 scale)
 
-# Privacy & Encryption
-ENCRYPTION_KEY_PATH=./vault/encryption_key.key
-PSEUDONYMIZATION_SALT=generate_random_salt_here
+### ✅ Time-Based Analysis
+- AM/PM transaction popularity visualization
+- UTC hourly activity charts
+- Asset type distribution by time period
 
-# HMRC Settings
-CARF_THRESHOLD_GBP=10000
-REPORTING_ENTITY_NAME=Your Organization Ltd
-TAX_YEAR=2025-2026
+### ✅ AI Query Engine
+- Natural language queries about transaction data
+- Powered by HuggingFace Transformers
+- Example: "How many transactions exceed £10,000?"
 
-# Exchange Rates (use live API in production)
-ETH_TO_GBP_RATE=1800.00
-```
-
----
-
-
----
-
-## 🖥️ **Interactive GUI Dashboard**
-
-Launch the **Streamlit web interface** for visual interaction:
-
-```bash
-# Install dependencies (including Streamlit)
-pip install -r requirements.txt
-
-# Launch the dashboard
-streamlit run dashboard.py
-```
-
-The dashboard will open in your browser at `http://localhost:8501` with:
-
-- **🤖 AI Query Tab**: Enter natural language questions
-- **📊 Transaction Data Tab**: View transactions with risk scores
-- **📑 HMRC Report Tab**: Generate compliance summaries
-- **🔐 Privacy Status Tab**: Monitor encryption and pseudonymization
-- **📝 Audit Trail Tab**: Review all AI agent decisions
-
-### Dashboard Features
-- ✅ Real-time transaction visualization
-- ✅ Interactive CARF risk scoring
-- ✅ One-click CSV/Excel export
-- ✅ Live privacy protection status
-- ✅ Complete audit trail logging
+### ✅ HMRC-Ready Reports
+- Tabular data with full transaction details
+- CSV export functionality
+- Compliance status indicators
 
 ---
 
-## 🎯 Usage
-
-### Quick Start Example
-
-```python
-from src import (
-    BlockchainClient,
-    BlockchainProvider,
-    PrivacyGuard,
-    ETLPipeline,
-    BlockchainQueryAgent,
-    HMRCReporter
-)
-
-# Initialize components
-client = BlockchainClient(provider=BlockchainProvider.BLOCKCHAIN_COM)
-privacy_guard = PrivacyGuard()
-etl = ETLPipeline(carf_threshold=10000)
-ai_agent = BlockchainQueryAgent(client, etl)
-
-# Process natural language query
-result = ai_agent.query("Find all ETH transfers over £10,000")
-print(result)
-
-# Generate HMRC report
-reporter = HMRCReporter(reporting_entity="Your Org Ltd")
-reporter.export_to_excel(transactions_df, "./data/hmrc_report.xlsx")
-```
-
-### Run Example Script
-
-```bash
-python examples/usage_example.py
-```
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Natural Language Query               │
-│              "Find ETH transfers over £10k"             │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-         ┌─────────────────────────────┐
-         │   AI Agent (LangChain)      │
-         │   - Query interpretation    │
-         │   - Audit trail logging     │
-         └──────────┬──────────────────┘
-                    │
-                    ▼
-         ┌─────────────────────────────┐
-         │   Blockchain Client         │
-         │   - Blockchain.com API      │
-         │   - Blockbook API           │
-         └──────────┬──────────────────┘
-                    │
-                    ▼
-         ┌─────────────────────────────┐
-         │   ETL Pipeline              │
-         │   - Smart contract decode   │
-         │   - CARF risk scoring       │
-         │   - Timezone normalization  │
-         └──────────┬──────────────────┘
-                    │
-         ┌──────────┴──────────┐
-         │                     │
-         ▼                     ▼
-┌─────────────────┐   ┌──────────────────┐
-│ Privacy Guard   │   │  HMRC Reporter   │
-│ - Encrypt PII   │   │ - Summary tables │
-│ - Pseudonymize  │   │ - Export CSV/XLS │
-└─────────────────┘   └──────────────────┘
-```
-
----
-
-## 📂 Project Structure
+## 📂 Repository Structure
 
 ```
 blockchain-carf-framework/
-├── src/
-│   ├── blockchain_client.py   # Multi-provider API client
-│   ├── privacy_guard.py        # AES-256 encryption & pseudonymization
-│   ├── etl_pipeline.py         # Data transformation & CARF scoring
-│   ├── ai_agent.py             # LangChain AI orchestration
-│   └── hmrc_reporting.py       # Compliance reporting
-├── examples/
-│   └── usage_example.py        # Demonstration script
-├── data/                       # Output reports (gitignored)
-├── vault/                      # Encryption keys (gitignored)
-├── tests/                      # Unit tests
-├── Dockerfile                  # Multi-stage Docker build
-├── docker-compose.yml          # Orchestration configuration
-├── requirements.txt            # Python dependencies
-├── .env.example                # Configuration template
-└── README.md                   # This file
+├── CARF_Research_Report.ipynb    # Main research notebook
+├── Dockerfile.jupyter             # Docker configuration
+├── run-notebook.sh                # One-command launcher
+├── QUICKSTART.md                  # Setup instructions
+├── README.md                      # This file
+└── data/                          # Output directory
 ```
 
 ---
 
-## 🔒 Security & Compliance
+## 🤖 AI Query Interface
 
-### GDPR Compliance
-- **Pseudonymization**: Wallet addresses hashed with salted SHA-256
-- **Encryption**: PII encrypted with AES-256 (Fernet)
-- **Cryptographic Erasure**: Delete encryption keys to make data unrecoverable
-- **Audit Trail**: Complete logging for "right to access" requests
+The notebook includes an AI-powered query engine that lets you ask natural language questions:
 
-### UK Data (Use and Access) Act 2026
-- Encryption keys stored separately in `/vault` directory
-- Read-only Docker volumes prevent unauthorized modification
-- Non-root container execution
+```python
+# Example queries:
+"How many transactions exceed the CARF threshold?"
+"What's the total value of stablecoin transactions?"
+"Show me the highest risk transactions"
+```
 
-### CARF Compliance
-- Automatic flagging of transactions ≥ £10,000
-- Classification of qualifying stablecoins (USDT, USDC, DAI, BUSD, GBPT, EURS)
-- Tax year alignment with UK financial calendar (April 6 - April 5)
+The AI analyzes the transaction dataset and provides insights based on your questions.
 
 ---
 
-## 🧪 Testing
+## 📋 What's in the Notebook
 
-```bash
-# Run unit tests (when implemented)
-pytest tests/
-
-# Validate Docker build
-docker build -t blockchain-carf . && echo "Build successful"
-
-# Validate docker-compose configuration
-docker-compose config
-```
+1. **Data Fetching** - Real Ethereum addresses and transactions
+2. **CARF Scoring** - Automated compliance risk assessment  
+3. **Time Analysis** - AM/PM popularity with 4 visualization charts
+4. **AI Queries** - Natural language interface for data exploration
+5. **Reporting** - HMRC-ready tables with CSV export
 
 ---
 
-## 🚢 Deployment
+## 🔗 Transaction Verification
 
-### Local Development
-```bash
-python examples/usage_example.py
-```
+All transaction hashes are in full 66-character format and can be verified at:
 
-### Docker Production
-```bash
-docker-compose up -d
-docker logs -f blockchain-carf-framework
-```
-
-### GovCloud Deployment (Azure UK South)
-```bash
-# Build and tag
-docker build -t myregistry.azurecr.io/blockchain-carf:latest .
-
-# Push to Azure Container Registry
-az acr login --name myregistry
-docker push myregistry.azurecr.io/blockchain-carf:latest
-
-# Deploy to Azure Container Instances
-az container create \
-  --resource-group hmrc-compliance \
-  --name carf-framework \
-  --image myregistry.azurecr.io/blockchain-carf:latest \
-  --location uksouth
-```
+**https://www.blockchain.com/explorer/search**
 
 ---
 
-## 🤝 Contributing
+## 🐳 Docker Benefits
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- **Zero local dependencies** - Everything in container
+- **Consistent environment** - Works everywhere
+- **Easy cleanup** - Just stop the container
+- **Portable** - Share exact setup
+
+---
+
+## 📖 Usage
+
+1. Launch notebook (Docker or local)
+2. Open `CARF_Research_Report.ipynb`
+3. Run all cells: `Cell > Run All`
+4. View visualizations and results
+5. Use AI query interface for custom analysis
+6. Export reports to CSV
+
+---
+
+## 🛑 Stopping Docker
+
+Press `Ctrl+C` or:
+
+```bash
+docker stop carf-notebook
+```
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - See [LICENSE](LICENSE) file for details.
 
 ---
 
 ## 🆘 Support
 
-For questions about:
-- **HMRC Compliance**: Refer to [GOV.UK CARF Guidelines](https://www.gov.uk/)
-- **Technical Issues**: Open a GitHub issue
-- **Security Concerns**: Contact maintainers privately
+- **Technical Issues**: Review notebook comments and markdown cells
+- **HMRC CARF**: [GOV.UK Guidelines](https://www.gov.uk/)
+- **Blockchain Verification**: [Blockchain.com Explorer](https://www.blockchain.com/explorer)
 
 ---
 
-## 🏆 Why This Framework?
-
-### Audit Trail
-Every AI decision is logged with timestamps and reasoning. When HMRC asks *"Why was transaction X flagged?"*, you have a complete audit trail.
-
-### Future-Proof Cryptography
-Uses AES-256 and Salted SHA-256, the 2026 gold standards for blockchain data under the UK's updated Data (Use and Access) Act.
-
-### Infrastructure Portability
-Docker configuration ensures your environment is identical from local development to GovCloud deployment (Azure UK South, AWS eu-west-2).
-
----
-
-**Built for Senior Blockchain Data Engineers. Designed for UK Gov Compliance.**
+**Built for HMRC CARF Compliance Research - 2026**
