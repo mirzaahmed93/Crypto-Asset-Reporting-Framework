@@ -107,6 +107,38 @@ ETH_TO_GBP_RATE=1800.00
 
 ---
 
+
+---
+
+## 🖥️ **Interactive GUI Dashboard**
+
+Launch the **Streamlit web interface** for visual interaction:
+
+```bash
+# Install dependencies (including Streamlit)
+pip install -r requirements.txt
+
+# Launch the dashboard
+streamlit run dashboard.py
+```
+
+The dashboard will open in your browser at `http://localhost:8501` with:
+
+- **🤖 AI Query Tab**: Enter natural language questions
+- **📊 Transaction Data Tab**: View transactions with risk scores
+- **📑 HMRC Report Tab**: Generate compliance summaries
+- **🔐 Privacy Status Tab**: Monitor encryption and pseudonymization
+- **📝 Audit Trail Tab**: Review all AI agent decisions
+
+### Dashboard Features
+- ✅ Real-time transaction visualization
+- ✅ Interactive CARF risk scoring
+- ✅ One-click CSV/Excel export
+- ✅ Live privacy protection status
+- ✅ Complete audit trail logging
+
+---
+
 ## 🎯 Usage
 
 ### Quick Start Example

@@ -19,6 +19,11 @@ pytz>=2023.3
 # Environment management
 python-dotenv>=1.0.0
 
+# GUI Dashboard
+streamlit>=1.31.0
+plotly>=5.18.0
+matplotlib>=3.8.0
+
 # Optional: Real LLM providers (uncomment as needed)
 # langchain-openai>=0.0.2
 # langchain-anthropic>=0.1.1
