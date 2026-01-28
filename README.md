@@ -4,6 +4,14 @@
 
 A streamlined Jupyter notebook demonstrating automated CARF compliance scoring for real Ethereum transactions with AI-powered querying capabilities.
 
+> ## 🆕 NEW: Enhanced Version Available!
+> **`CARF_Research_Report_Enhanced.ipynb`** now includes:
+> - 🔗 **Clickable blockchain.com verification links** 
+> - 🤖 **AI-powered audit report generation**
+> - 📊 **Enhanced interactive HTML tables**
+> 
+> See [NOTEBOOKS_COMPARISON.md](NOTEBOOKS_COMPARISON.md) for details.
+
 ---
 
 ## 🚀 Quick Start
@@ -59,12 +67,15 @@ jupyter notebook CARF_Research_Report.ipynb
 
 ```
 blockchain-carf-framework/
-├── CARF_Research_Report.ipynb    # Main research notebook
-├── Dockerfile.jupyter             # Docker configuration
-├── run-notebook.sh                # One-command launcher
-├── QUICKSTART.md                  # Setup instructions
-├── README.md                      # This file
-└── data/                          # Output directory
+├── CARF_Research_Report.ipynb           # Original research notebook
+├── CARF_Research_Report_Enhanced.ipynb  # ⭐ Enhanced with AI & links
+├── NOTEBOOKS_COMPARISON.md              # Feature comparison guide
+├── Dockerfile.jupyter                   # Docker configuration
+├── run-notebook.sh                      # One-command launcher
+├── QUICKSTART.md                        # Setup instructions
+├── ENHANCED_README.md                   # Enhanced features guide
+├── README.md                            # This file
+└── data/                                # Output directory
 ```
 
 ---
