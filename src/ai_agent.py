@@ -1,13 +1,9 @@
 """
 AI Agent for Natural Language Query Processing
-Uses LangChain to interpret queries and orchestrate blockchain data filtering.
+Interprets queries and orchestrates blockchain data filtering with audit trail.
 """
 
 from typing import List, Dict, Any, Optional
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.tools import Tool
-from langchain_community.llms import FakeListLLM
-from langchain.prompts import PromptTemplate
 import logging
 import re
 
@@ -24,8 +20,7 @@ class BlockchainQueryAgent:
     def __init__(
         self,
         blockchain_client,
-        etl_pipeline,
-        llm=None
+        etl_pipeline
     ):
         """
         Initialize AI agent with blockchain tooling.
@@ -33,78 +28,15 @@ class BlockchainQueryAgent:
         Args:
             blockchain_client: BlockchainClient instance
             etl_pipeline: ETLPipeline instance
-            llm: LangChain LLM instance (defaults to FakeListLLM for demo)
         """
         self.blockchain_client = blockchain_client
         self.etl_pipeline = etl_pipeline
         
-        # Use FakeListLLM for demonstration (replace with real LLM in production)
-        self.llm = llm or FakeListLLM(responses=[
-            "I will search for transactions using the filter_high_value_transactions tool",
-            "The transactions have been found and filtered"
-        ])
-        
-        # Create agent tools
-        self.tools = self._create_tools()
-        
         # Audit trail for regulatory compliance
         self.audit_trail = []
         
-        logger.info("BlockchainQueryAgent initialized with LangChain")
-    
-    def _create_tools(self) -> List[Tool]:
-        """Create LangChain tools for blockchain operations"""
-        
-        def get_address_transactions(address: str) -> str:
-            """Fetch transactions for a wallet address"""
-            try:
-                txs = self.blockchain_client.get_address_transactions(address)
-                self._log_audit("get_address_transactions", {"address": address[:10] + "..."})
-                return f"Found {len(txs)} transactions for address"
-            except Exception as e:
-                return f"Error: {str(e)}"
-        
-        def filter_high_value_transactions(min_value_gbp: str) -> str:
-            """Filter transactions above a GBP threshold"""
-            try:
-                threshold = float(re.findall(r'\d+', str(min_value_gbp))[0])
-                self._log_audit("filter_high_value", {"threshold_gbp": threshold})
-                return f"Filtering transactions above £{threshold:,.2f}"
-            except Exception as e:
-                return f"Error: {str(e)}"
-        
-        def count_reportable_transactions() -> str:
-            """Count transactions requiring CARF reporting"""
-            self._log_audit("count_reportable", {})
-            return "Counted transactions exceeding CARF threshold"
-        
-        def classify_stablecoins() -> str:
-            """Classify qualifying vs unbacked assets"""
-            self._log_audit("classify_assets", {})
-            return "Classified qualifying stablecoins vs unbacked assets"
-        
-        return [
-            Tool(
-                name="get_address_transactions",
-                func=get_address_transactions,
-                description="Fetch all transactions for a blockchain wallet address. Input: wallet address"
-            ),
-            Tool(
-                name="filter_high_value_transactions",
-                func=filter_high_value_transactions,
-                description="Filter transactions above a GBP value threshold. Input: minimum GBP value (e.g., '10000')"
-            ),
-            Tool(
-                name="count_reportable_transactions",
-                func=count_reportable_transactions,
-                description="Count transactions that require HMRC CARF reporting"
-            ),
-            Tool(
-                name="classify_stablecoins",
-                func=classify_stablecoins,
-                description="Classify transactions as qualifying stablecoins or unbacked assets"
-            )
-        ]
+        logger.info("BlockchainQueryAgent initialized")
+
     
     def _log_audit(self, action: str, parameters: Dict[str, Any]):
         """Log agent action to audit trail"""

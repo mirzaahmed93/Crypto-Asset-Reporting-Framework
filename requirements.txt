@@ -1,6 +1,7 @@
 # Core dependencies
-langchain>=0.1.0
-langchain-community>=0.0.10
+# Note: LangChain is optional for advanced AI features
+# langchain>=0.1.0
+# langchain-community>=0.0.10
 
 # Blockchain and web3
 requests>=2.31.0
