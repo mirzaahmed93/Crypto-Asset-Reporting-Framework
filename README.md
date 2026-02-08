@@ -1,160 +1,81 @@
-# Blockchain CARF Framework - Research Notebook
+# Crypto Asset Reporting Framework (CARF)
 
-**AI-Driven Analysis for HMRC's Crypto-Asset Reporting Framework (CARF)**
+A comprehensive Jupyter notebook implementation for HMRC's Crypto-Asset Reporting Framework compliance analysis.
 
-A streamlined Jupyter notebook demonstrating automated CARF compliance scoring for real Ethereum transactions with AI-powered querying capabilities.
+## 🚀 Features
 
-> ## 🆕 NEW: Enhanced Version Available!
-> **`CARF_Research_Report_Enhanced.ipynb`** now includes:
-> - 🔗 **Clickable blockchain.com verification links** 
-> - 🤖 **AI-powered audit report generation**
-> - 📊 **Enhanced interactive HTML tables**
-> 
-> See [NOTEBOOKS_COMPARISON.md](NOTEBOOKS_COMPARISON.md) for details.
+### 1. Real Ethereum Transaction Data
+- Fetches **real, verifiable** Ethereum transactions from Etherscan API
+- Uses embedded verified transaction hashes as backup
+- All transactions verifiable on Etherscan.io
 
----
+### 2. CARF Compliance Scoring
+- Automatic detection of £10,000+ reportable transactions
+- Risk scoring algorithm (0-25 points)
+- Stablecoin classification (USDC, USDT, DAI)
+- AM/PM transaction pattern analysis
 
-## 🚀 Quick Start
+### 3. Interactive Risk Heatmap
+- **Plotly heatmap** showing transaction risk factors
+- Hover for quick transaction details
+- Dropdown selector for full transaction information
+- Direct Etherscan verification links
 
-### Option 1: Docker (Recommended)
+### 4. AI-Powered Audit Reports
+- **Customizable prompts** - Ask specific compliance questions
+- **Tone selection** - Professional, Executive, Technical, Risk-Focused, or Casual
+- Powered by **Groq API** (Llama 3.1) - Free tier available
+- Deterministic fallback when no API key
 
-```bash
-cd /Users/ahmedmirza/.gemini/antigravity/scratch/blockchain-carf-framework
-./run-notebook.sh
-```
-
-Opens at **`http://localhost:8888`**
-
-### Option 2: Local Installation
-
-```bash
-pip install jupyter pandas matplotlib seaborn requests transformers torch
-jupyter notebook CARF_Research_Report.ipynb
-```
-
----
-
-## 📊 Features
-
-### ✅ Real Blockchain Data
-- Fetches transactions using actual Ethereum addresses
-- Binance exchange wallets, USDC/USDT contracts, major DeFi protocols
-- Full 66-character transaction hashes for blockchain.com verification
-
-### ✅ CARF Compliance Scoring
-- Automated £10,000 threshold detection
-- Qualifying stablecoin classification (USDT, USDC, DAI)
-- Risk score calculation (0-20 scale)
-
-### ✅ Time-Based Analysis
-- AM/PM transaction popularity visualization
-- UTC hourly activity charts
-- Asset type distribution by time period
-
-### ✅ AI Query Engine
-- Natural language queries about transaction data
-- Powered by HuggingFace Transformers
-- Example: "How many transactions exceed £10,000?"
-
-### ✅ HMRC-Ready Reports
-- Tabular data with full transaction details
-- CSV export functionality
-- Compliance status indicators
-
----
-
-## 📂 Repository Structure
-
-```
-blockchain-carf-framework/
-├── CARF_Research_Report.ipynb           # Original research notebook
-├── CARF_Research_Report_Enhanced.ipynb  # ⭐ Enhanced with AI & links
-├── NOTEBOOKS_COMPARISON.md              # Feature comparison guide
-├── Dockerfile.jupyter                   # Docker configuration
-├── run-notebook.sh                      # One-command launcher
-├── QUICKSTART.md                        # Setup instructions
-├── ENHANCED_README.md                   # Enhanced features guide
-├── README.md                            # This file
-└── data/                                # Output directory
-```
-
----
-
-## 🤖 AI Query Interface
-
-The notebook includes an AI-powered query engine that lets you ask natural language questions:
-
-```python
-# Example queries:
-"How many transactions exceed the CARF threshold?"
-"What's the total value of stablecoin transactions?"
-"Show me the highest risk transactions"
-```
-
-The AI analyzes the transaction dataset and provides insights based on your questions.
-
----
-
-## 📋 What's in the Notebook
-
-1. **Data Fetching** - Real Ethereum addresses and transactions
-2. **CARF Scoring** - Automated compliance risk assessment  
-3. **Time Analysis** - AM/PM popularity with 4 visualization charts
-4. **AI Queries** - Natural language interface for data exploration
-5. **Reporting** - HMRC-ready tables with CSV export
-
----
-
-## 🔗 Transaction Verification
-
-All transaction hashes are in full 66-character format and can be verified at:
-
-**https://www.blockchain.com/explorer/search**
-
----
-
-## 🐳 Docker Benefits
-
-- **Zero local dependencies** - Everything in container
-- **Consistent environment** - Works everywhere
-- **Easy cleanup** - Just stop the container
-- **Portable** - Share exact setup
-
----
-
-## 📖 Usage
-
-1. Launch notebook (Docker or local)
-2. Open `CARF_Research_Report.ipynb`
-3. Run all cells: `Cell > Run All`
-4. View visualizations and results
-5. Use AI query interface for custom analysis
-6. Export reports to CSV
-
----
-
-## 🛑 Stopping Docker
-
-Press `Ctrl+C` or:
+## 📋 Prerequisites
 
 ```bash
-docker stop carf-notebook
+pip install requests pandas matplotlib seaborn plotly ipywidgets python-dotenv
 ```
 
----
+## 🔑 API Keys
 
-## 📄 License
+Create a `.env` file in the project root:
 
-MIT License - See [LICENSE](LICENSE) file for details.
+```
+ETHERSCAN_API_KEY=your_etherscan_key
+GROQ_API_KEY=your_groq_key
+```
 
----
+- **Etherscan API**: Free at [etherscan.io/apis](https://etherscan.io/apis)
+- **Groq API**: Free at [console.groq.com/keys](https://console.groq.com/keys)
 
-## 🆘 Support
+## 🏃 Running the Notebook
 
-- **Technical Issues**: Review notebook comments and markdown cells
-- **HMRC CARF**: [GOV.UK Guidelines](https://www.gov.uk/)
-- **Blockchain Verification**: [Blockchain.com Explorer](https://www.blockchain.com/explorer)
+```bash
+jupyter notebook CARF_Audit_Final_v4.ipynb
+```
 
----
+Then run all cells (Kernel → Restart & Run All).
 
-**Built for HMRC CARF Compliance Research - 2026**
+## 📊 Sections
+
+| Section | Description |
+|---------|-------------|
+| 1 | Environment Setup |
+| 2 | Fetch Real Transaction Data |
+| 3 | CARF Risk Scoring |
+| 4 | Interactive Transaction Table |
+| 5 | AM/PM Analysis Charts |
+| 5.5 | Interactive Risk Heatmap |
+| 6 | AI Audit Report Generator |
+| 7 | Full Compliance Report |
+
+## 🔒 Security
+
+- API keys stored in `.env` file (not committed to git)
+- All transaction verification links point to Etherscan.io
+- No sensitive data stored in the notebook
+
+## 📝 License
+
+MIT License
+
+## 🤝 Contributing
+
+Pull requests welcome. For major changes, please open an issue first.

@@ -1,3 +1,6 @@
+# Ignore environment files
+.env
+
 # Python
 __pycache__/
 *.py[cod]
@@ -20,49 +23,18 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-venv/
-env/
-ENV/
-.venv
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# IDEs
+# IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Environment variables
-.env
-.env.local
-
-# Data and outputs
-data/*.csv
-data/*.xlsx
-data/*.json
-!data/.gitkeep
-
-# Encryption keys (CRITICAL: Never commit these!)
-vault/*.key
-vault/*.pem
-!vault/.gitkeep
-
-# Logs
-*.log
-logs/
-
-# Docker
-.dockerignore
-
-# Jupyter Notebooks
-.ipynb_checkpoints/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
 
 # OS
+.DS_Store
 Thumbs.db
+
+# Temp files
+*.tmp
+*.bak
+FIXES_APPLIED.md
