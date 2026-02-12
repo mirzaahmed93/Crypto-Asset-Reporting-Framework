@@ -53,7 +53,7 @@ jupyter notebook CARF_Audit_Final_v4.ipynb
 
 Then run all cells (Kernel → Restart & Run All) on Jupyter itself.
 
-## 📊 Sections
+## Sections of report
 
 | Section | Description |
 |---------|-------------|
