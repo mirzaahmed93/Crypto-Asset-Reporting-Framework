@@ -65,6 +65,7 @@ Then run all cells (Kernel → Restart & Run All) on Jupyter itself.
 | 5.5 | Interactive Risk Heatmap |
 | 6 | AI Audit Report Generator |
 | 7 | Full Compliance Report |
+| 8 | Limitations, Future Research and Conclusion |
 
 ## Security
 
