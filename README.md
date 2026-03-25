@@ -1,4 +1,14 @@
+---
+title: Crypto Audit Dashboard
+emoji: 📊
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
 # Crypto Asset Reporting and Liquidity Pool Reconciliation Framework
+
+ **[Live Demo: Interactive Crypto Audit Dashboard](https://huggingface.co/spaces/amirza1993/prod)** (powered by Voilà)
 
 A professional-grade suite of Jupyter notebooks for **CARF (Crypto-Asset Reporting Framework)** compliance, multi-chain portfolio reconciliation, and automated P&L auditing.
 
@@ -52,22 +62,6 @@ jupyter notebook CARF_Audit.ipynb
 # To run the LP Reconciliation & P&L tool:
 jupyter notebook lp_reconciliation.ipynb
 ```
-
-### Dashboard Mode (Voilà)
-To run the P&L tool as a clean, code-free web dashboard (best for non-technical stakeholders):
-```bash
-pip install voila
-voila lp_reconciliation.ipynb --theme=dark
-```
-This will open a local web app where users can interact with the GUI without seeing any Python code.
-
-## Web Deployment (Zero Install)
-You can deploy this dashboard to the web for free so stakeholders don't need to install anything:
-1. Create an account on [HuggingFace Spaces](https://huggingface.co/spaces) or [Render](https://render.com/)
-2. Connect this GitHub repository
-3. Set the build command to `pip install -r requirements.txt`
-4. Set the run command to `voila lp_reconciliation.ipynb --no-browser --port=$PORT`
-5. Add your `ALCHEMY_API_KEY` and `MORALIS_API_KEY` as Environment Secrets in the deployment settings.
 
 ## Bibliography & Research
 This project is built upon established regulatory and academic frameworks, including:
