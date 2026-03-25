@@ -19,5 +19,5 @@ COPY --chown=user . $HOME/app/
 # Expose the standard HuggingFace port
 EXPOSE 7860
 
-# Launch Voila dashboard
-CMD ["voila", "--port", "7860", "--no-browser", "--theme=dark", "lp_reconciliation.ipynb"]
+# Launch Voila dashboard safely
+CMD voila --port 7860 --no-browser --theme dark --Voila.ip=0.0.0.0 --Voila.tornado_settings="{'headers':{'Content-Security-Policy':'frame-ancestors *'}}" lp_reconciliation.ipynb
