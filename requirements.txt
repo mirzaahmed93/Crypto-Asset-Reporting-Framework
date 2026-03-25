@@ -1,0 +1,6 @@
+jupyter
+voila
+ipywidgets
+pandas
+requests
+python-dotenv
