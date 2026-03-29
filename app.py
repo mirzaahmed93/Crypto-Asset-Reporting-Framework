@@ -71,7 +71,20 @@ class AlchemyAdapter:
                 p_t = {"id":1,"jsonrpc":"2.0","method":"alchemy_getTokenBalances","params":[address]}
                 for b in requests.post(url, json=p_t).json().get("result",{}).get("tokenBalances",[]):
                     bal = int(b["tokenBalance"],16)
-                    if bal > 0: res.append(AuditResult(name, "TOKEN", bal/1e18, b["contractAddress"]))
+                    if bal > 0:
+                        contract_addr = b["contractAddress"]
+                        
+                        # Fetch true symbol and decimals to avoid 0.00 rounding issues and "TOKEN" labels
+                        try:
+                            meta_payload = {"id":1,"jsonrpc":"2.0","method":"alchemy_getTokenMetadata","params":[contract_addr]}
+                            meta = requests.post(url, json=meta_payload).json().get("result", {})
+                            symbol = str(meta.get("symbol") or "TOKEN")
+                            decimals = int(meta.get("decimals") or 18)
+                        except:
+                            symbol, decimals = "TOKEN", 18
+                            
+                        true_bal = bal / (10 ** decimals)
+                        res.append(AuditResult(name, symbol, true_bal, contract_addr))
             except: pass
         return res
 
