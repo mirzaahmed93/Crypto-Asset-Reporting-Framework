@@ -20,4 +20,4 @@ COPY --chown=user . $HOME/app/
 EXPOSE 7860
 
 # Launch Voila dashboard safely
-CMD voila --port 7860 --no-browser --theme dark --Voila.ip=0.0.0.0 --Voila.tornado_settings="{'headers':{'Content-Security-Policy':'frame-ancestors *'}}" lp_reconciliation.ipynb
+CMD ["voila", "--port=7860", "--no-browser", "--theme=dark", "--Voila.ip=0.0.0.0", "lp_reconciliation.ipynb"]
