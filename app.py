@@ -116,7 +116,32 @@ def run_compliance_report(txs):
 st.set_page_config(page_title="Crypto Audit Dashboard", page_icon="📊", layout="wide")
 
 st.title("📊 LP Reconciliation & Multi-Chain Audit")
-st.markdown("Automated, real-time mechanism for fetching cross-chain balances, calculating P&L using historical block height pricing, and identifying CARF compliance risks.")
+
+st.markdown("""
+## 1. Overview
+The Liquidity Pool (LP) Reconciliation tool is a technical framework designed to bridge the gap between complex On-Chain DeFi activities and standardised regulatory reporting (e.g., Crypto Asset Reporting Framework-CARF) (OECD, 2022). This POC provides an automated, real time mechanism for fetching cross chain balances, calculating Performance alongside profit and loss statments (P&L) using historical block height pricing along with identifying compliance risks (BIS, 2023).
+
+## 2. The Business Logic Gap 
+In the traditional financial sector, reconciliation is a straightforward process of matching internal records against bank statements. In the decentralised landscape, this process is explained by Messari (2024) who states this is stifled ultimately with digital assets primarily due to 3 factors: 
+
+### i) The Granularity Gap (Asset Decomposition): 
+Most portfolio trackers show a balance for an "LP (liquidity pool) Token" (e.g., UNI-V2) which acts like a digital receipt for assets a user has deposited into a decentralised exchange (like Uniswap or PancakeSwap). However, for tax purposes and CARF reporting, the underlying assets (e.g., ETH and USDC) must be individualistically accounted for at the moment of entry and exit to ensure accurate treatment of DeFi (decentralised finance) income (HMRC, 2024). Manual reconciliation for high-frequency traders poses a big issue.
+
+### ii) The Cost-Basis Fragmentation Gap: 
+Digital assets move seamlessly across chains. When an asset is received from an "unknown" sender (source), the cost basis is often lost. Cost Basis is simply the total price a user has paid to buy an asset, and an LP Token is a digital receipt for assets deposited into a trading pool. The POC here aims to look at that LP receipt to find the original buy prices (cost basis), so that an accurate claim of total profit (or loss) is conducted for regulatory reporting. *This POC attempts solves this by scanning inbound transaction history and fetching the block-specific price at the moment of initial acquisition*.
+
+### iii) The "Regulatory Blindspot"
+Current reporting frameworks like the OECD's CARF framework, which has a POC done in another notebook, requires specific metadata (transaction hash, fiat equivalent values). Generic blockchain explorers do not provide the high level aggregation required for institutional or individual tax disclosures. *This presents a big gap to business service and other firms attempting to provide a holistic view of a wallet (user's) activity*.
+""")
+
+with st.expander("⚙️ Technical Implementation & Dependencies"):
+    st.markdown("""
+    The framework relies on a modular "Adapter" architecture to ensure data integrity and real-time precision.
+    *   **Alchemy API (Multi-Chain Indexer)**: Used as the primary gateway to the blockchain.
+    *   **Moralis API (Historical Price Engine)**: Essential for P&L calculations. It allows the tool to query the price of a specific token at a specific **Block Number**, rather than a generic timestamp.
+    *   **Streamlit & Pandas**: Enables the GUI experience and vectorized performance calculations.
+    """)
+
 
 # Sidebar / Config
 st.sidebar.header("Audit Configuration")
@@ -216,3 +241,31 @@ with col_exp:
             file_name=f"audit_{int(time.time())}.csv",
             mime="text/csv"
         )
+
+st.divider()
+
+with st.expander("📚 Full Report: Limitations, Conclusion & Bibliography"):
+    st.markdown("""
+    ## 6. Current Limitations:
+    While this POC provides a robust framework for DeFi reconciliation, certain technical constraints remain:
+    
+    i) **Historical Data Depth**: The tool currently scans the most recent transaction history. Reaching the "true" initial cost basis may require increasing API pagination depth.
+    ii) **Concentrated Liquidity (Uniswap V3)**: Standard ERC-20 LP tokens are fully supported; however, Uniswap V3 positions require a specialized decomposition engine.
+    iii) **Gas Fee Approximation**: The gas accounting logic assumes the first detected inbound transfer is the primary acquisition point.
+    iv) **API Rate Limits**: Performance is subject to the rate limits of the limited API keys.
+    v) **Token Decimal Precision**: The current implementation assumes all ERC-20 tokens use 18 decimal places for demonstration.
+
+    ## 7. Conclusion:
+    The Liquidity Pool (LP) Reconciliation tool demonstrates that the "Regulatory Blindspot" in decentralised finance is not a permanent fixture, but a technical hurdle that can be overcome through automated indexing and real-time price discovery. Beyond simple compliance, the ability to decompose multi-chain data has profound implications for precision in P&L, true ROI discovery, and dynamic valuation of "long-tail" DeFi assets.
+
+    ## 8. Bibliography:
+    *   **Bank for International Settlements (BIS) (2023).** *DeFi: Ecosystem, Risks and Options for Regulation.*
+    *   **Chainalysis (2023).** *The 2023 Geography of Cryptocurrency Report.*
+    *   **DefiLlama (2026).** *Total Value Locked and Protocol Analytics.*
+    *   **European Commission (2023).** *Markets in Crypto-Assets Regulation (MiCA).*
+    *   **HMRC (2024).** *Cryptoassets Manual: Compliance and Reporting.*
+    *   **IOSCO (2023).** *Policy Recommendations for Decentralized Finance (DeFi).*
+    *   **Messari Crypto (2024).** *State of DeFi: Q1 2024 Analysis.*
+    *   **OECD (2022).** *Crypto-Asset Reporting Framework and Amendments.*
+    *   **Zetzsche, D. A., Arner, D. W., & Buckley, R. P. (2020).** *Decentralized Finance: The Future of Financial Regulation.*
+    """)
