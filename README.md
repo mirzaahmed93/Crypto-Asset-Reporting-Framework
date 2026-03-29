@@ -1,6 +1,5 @@
 ---
 title: Crypto Audit Dashboard
-emoji: 📊
 colorFrom: blue
 colorTo: green
 sdk: streamlit
@@ -10,9 +9,9 @@ pinned: false
 ---
 # Crypto Asset Reporting and Liquidity Pool Reconciliation Framework
 
- **[Live Demo: Interactive Crypto Audit Dashboard](https://huggingface.co/spaces/amirza1993/prod)** (powered by Voilà)
+ **[Live Demo: Interactive Crypto Audit Dashboard](https://carf-reconciliation.streamlit.app)** (Powered by Streamlit Community Cloud)
 
-A professional-grade suite of Jupyter notebooks for **CARF (Crypto-Asset Reporting Framework)** compliance, multi-chain portfolio reconciliation, and automated P&L auditing.
+A professional-grade framework containing both a native **Streamlit Web Dashboard** and Jupyter notebooks for **CARF (Crypto-Asset Reporting Framework)** compliance, multi-chain portfolio reconciliation, and automated P&L auditing.
 
 ## Modules (notebooks)
 
