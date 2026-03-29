@@ -153,6 +153,12 @@ with st.expander("⚙️ Technical Implementation & Dependencies"):
     *   **Alchemy API (Multi-Chain Indexer)**: Used as the primary gateway to the blockchain.
     *   **Moralis API (Historical Price Engine)**: Essential for P&L calculations. It allows the tool to query the price of a specific token at a specific **Block Number**, rather than a generic timestamp.
     *   **Streamlit & Pandas**: Enables the GUI experience and vectorized performance calculations.
+
+    ### 3.2 Advanced GUI for P&L Calculations And Analysis
+    This section provides a user-friendly Control Dashboard that allows the user to interact with the audit logic without writing any code. Through this GUI, the user can input specific wallet addresses, set transaction history limits (to control data depth), and toggle between different performance timeframes to see how the portfolio has evolved across time.
+
+    ### 3.3 USD Reconciliation (Public Price Discovery)
+    In this section, the tool performs "Price Discovery" by connecting to external pricing engines (Moralis). The tool translates the raw number of tokens on the blockchain into their equivalent USD market value at either the current moment or a specific historical block height. This ensures that the reconciliation is based on real-world "Fair Market Value" rather than arbitrary estimates.
     """)
 
 
@@ -160,7 +166,7 @@ with st.expander("⚙️ Technical Implementation & Dependencies"):
 st.sidebar.header("Audit Configuration")
 wallet_input = st.sidebar.text_input("Target Wallet", value="0x28c6c06298d514db089934071355e5743bf21d60")
 limit_input = st.sidebar.slider("Tx Limit", min_value=1, max_value=10, value=10)
-timeframe_input = st.sidebar.selectbox("Timeframe", options=['24h', '1w', '1m'], index=0)
+timeframe_input = st.sidebar.selectbox("Timeframe", options=['24h', '1w', '1m', '3m', '6m', '1y', '5y', '10y', 'All Time'], index=0)
 
 if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
     with st.spinner(f"Auditing {wallet_input[:10]}... [Timeframe: {timeframe_input}]"):
@@ -177,8 +183,12 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             is_native = (addr == "native" or addr is None)
             
             latest_block = get_latest_block(chain)
-            block_offsets = {'24h': 7200, '1w': 50400, '1m': 216000}
-            hist_block = latest_block - block_offsets.get(timeframe_input, 7200)
+            block_offsets = {
+                '24h': 7200, '1w': 50400, '1m': 216000,
+                '3m': 648000, '6m': 1296000, '1y': 2628000,
+                '5y': 13140000, '10y': 26280000, 'All Time': 99999999
+            }
+            hist_block = max(1, latest_block - block_offsets.get(timeframe_input, 7200))
             
             if is_native:
                 wrapper = NATIVE_WRAPPERS.get(chain.upper(), NATIVE_WRAPPERS["ETHEREUM"])
