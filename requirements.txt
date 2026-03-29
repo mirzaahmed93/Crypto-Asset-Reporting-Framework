@@ -5,4 +5,4 @@ pandas
 requests
 python-dotenv
 
-streamlit==1.32.2
+streamlit
