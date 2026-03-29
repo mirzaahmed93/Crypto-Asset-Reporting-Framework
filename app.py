@@ -154,11 +154,22 @@ with st.expander("⚙️ Technical Implementation & Dependencies"):
     *   **Moralis API (Historical Price Engine)**: Essential for P&L calculations. It allows the tool to query the price of a specific token at a specific **Block Number**, rather than a generic timestamp.
     *   **Streamlit & Pandas**: Enables the GUI experience and vectorized performance calculations.
 
-    ### 3.2 Advanced GUI for P&L Calculations And Analysis
-    This section provides a user-friendly Control Dashboard that allows the user to interact with the audit logic without writing any code. Through this GUI, the user can input specific wallet addresses, set transaction history limits (to control data depth), and toggle between different performance timeframes to see how the portfolio has evolved across time.
+    ### 3.2 Advanced GUI for P&L Calculations And Analysis:
+    This section provides a user-friendly Control Dashboard that allows the user to interact with the audit logic without writing any code. Through this GUI, the user can input specific wallet addresses, set transaction history limits (to control data depth), and toggle between different performance timeframes (24h, 1w, or 1m) to see how the portfolio has evolved across time.
 
-    ### 3.3 USD Reconciliation (Public Price Discovery)
-    In this section, the tool performs "Price Discovery" by connecting to external pricing engines (Moralis). The tool translates the raw number of tokens on the blockchain into their equivalent USD market value at either the current moment or a specific historical block height. This ensures that the reconciliation is based on real-world "Fair Market Value" rather than arbitrary estimates.
+    ## 3.3 USD Reconciliation (Public Price Discovery):
+    In this section, the tool performs "Price Discovery" by connecting to external pricing engines (Moralis and Dexscreener where asset prices are not obtaines from Moralis). The tool translates the raw number of tokens on the blockchain into their equivalent USD market value at either the current moment or a specific historical block height. This ensures that the reconciliation is based on real-world "Fair Market Value" rather than arbitrary estimates.
+
+    ## 4. Compliance & Risk Audit
+    This section implements an automated Risk Evaluation Engine that scans the transaction history for patterns that trigger regulatory concern under the CARF framework. Specifically, the engine focuses on:
+    i) High-Value Transfers: Identifying individual transactions exceeding 50 tokens, which may trigger *"Enhanced Due Diligence" (EDD)* reporting requirements.
+    ii) Self-Transfer Detection: Flagging Round-tripping (where assets are moved between different wallets owned by the same user), a common pattern used in tax-loss harvesting or wash trading which requires specific disclosure.
+    iii) Audit Trail Verification: Creating a permanent, time-stamped log of risks identified during the audit to ensure transparency and simplified documentation for authorities.
+
+    By automating such checks, this tool removes the manual burden of checking every transaction hash, providing an immediate *"Risk Summary"* for the entire multi-chain portfolio. 
+
+    ## 5. Export Audit Results:
+    The final module provides a Secure Data Export feature. Once the audit and compliance checks are complete, the user can generate a professional CSV ledger with a single click. This feature uses digital encoding to create a direct download link into the user's  browser, allowing them to save the audit results for their records or to share with relevant professionals and/or regulatory bodies as required.
     """)
 
 
@@ -271,24 +282,51 @@ with st.expander("📚 Full Report: Limitations, Conclusion & Bibliography"):
     st.markdown("""
     ## 6. Current Limitations:
     While this POC provides a robust framework for DeFi reconciliation, certain technical constraints remain:
-    
-    i) **Historical Data Depth**: The tool currently scans the most recent transaction history. Reaching the "true" initial cost basis may require increasing API pagination depth.
-    ii) **Concentrated Liquidity (Uniswap V3)**: Standard ERC-20 LP tokens are fully supported; however, Uniswap V3 positions require a specialized decomposition engine.
-    iii) **Gas Fee Approximation**: The gas accounting logic assumes the first detected inbound transfer is the primary acquisition point.
-    iv) **API Rate Limits**: Performance is subject to the rate limits of the limited API keys.
-    v) **Token Decimal Precision**: The current implementation assumes all ERC-20 tokens use 18 decimal places for demonstration.
+
+    i) Historical Data Depth: The tool currently scans the most recent transaction history based on the "Tx Limit" slider. For wallets with thousands of transactions, reaching the "true" initial cost basis may require increasing API pagination depth.
+
+    ii)Concentrated Liquidity (Uniswap V3): Standard ERC-20 LP tokens are fully supported; however, Uniswap V3 positions (which are represented as NFTs) require a specialized decomposition engine to calculate the underlying asset ratios.
+
+    iii) Gas Fee Approximation: The gas accounting logic assumes the first detected inbound transfer is the primary acquisition point. If an asset was acquired via multiple small buys, the gas cost is currently anchored to the most significant initial entry.
+
+    iv) API Rate Limits: As a browser-based tool, performance is subject to the rate limits of the free-tier API keys provided (Alchemy, Moralis, and Dexscreener).
+
+    v) Token Decimal Precision: The current implementation assumes all ERC-20 tokens use 18 decimal places when converting raw blockchain balances to human readable values. Tokens with non-standard decimals (e.g., USDC uses 6, WBTC uses 8) may display inflated balances, which cascades into incorrect Value (USD) and ROI calculations. *A production-grade solution would require an additional decimals() RPC call per contract to dynamically normalise each token's balance.*
+
+    ## 6.1 Future exploration:
+    To evolve this framework into a production-grade audit suite, the following areas could be explored:
+
+    i) Multi-Wallet Aggregation: Implementing "Combined Entity" reporting where a user can link multiple hardware and software wallets to see a consolidated CARF risk report.
+
+    ii) Tax-Loss Harvesting Engine: Adding a dedicated dashboard that flags assets currently trading below their calculated cost basis, identifying opportunities for strategic tax-loss harvesting before the end of the fiscal year.
+
+    iii) Cross-Chain Bridge Reconciliation: Deepening the logic to "trace" assets as they move across bridges (e.g., from Ethereum to L2s like Base) to maintain a continuous cost-basis chain.
+
+    iv) Automated Tax Form Generation: Expanding the "Export" feature to directly populate standardized tax forms (like IRS Form 8949 or local equivalents) based on the reconciled capital gains data.
 
     ## 7. Conclusion:
-    The Liquidity Pool (LP) Reconciliation tool demonstrates that the "Regulatory Blindspot" in decentralised finance is not a permanent fixture, but a technical hurdle that can be overcome through automated indexing and real-time price discovery. Beyond simple compliance, the ability to decompose multi-chain data has profound implications for precision in P&L, true ROI discovery, and dynamic valuation of "long-tail" DeFi assets.
+
+    The Liquidity Pool (LP) Reconciliation tool demonstrates that the "Regulatory Blindspot" in decentralised finance is not a permanent fixture, but a technical hurdle that can be overcome through automated indexing and real-time price discovery. By successfully unbundling complex LP tokens into their underlying assets and establishing a verifiable cost basis through historical block-height analysis, this POC provides a scalable blueprint for institutional-grade auditing better understanding financial metrics.
+
+    Beyond simple compliance, the ability to decompose multi-chain data has profound implications for financial analysis:
+
+    i) Precision in P&L: By anchoring calculations to specific block numbers via the Moralis API, the tool moves past estimated values to establish a definitive, audit-ready Profit & Loss statement that can withstand regulatory scrutiny.
+
+    ii) True ROI (return on investment) Discovery: Establishing an accurate cost basis for assets transferred from external sources allows for the calculation of Lifetime ROI, providing users and firms with a realistic view of investment performance that accounts for entry-point volatility and gas fees.
+
+    iii) Dynamic Valuation: Integrating real time "Fair Market Value" through Dexscreener and Moralis enables high-fidelity valuation of "long-tail" DeFi assets, which are often mispriced or invisible on traditional financial dashboards (DefiLlama, 2026).
+
+    As global frameworks such as OECD's CARF and Europe's MiCA transition from policy to enforcement, the ability to provide a *holistic view* of multi-chain activity will become a mandatory requirement for business service firms and individual investors alike. This tool bridges that critical gap, transforming raw, fragmented blockchain data into a structured, transparent, and audit-ready ledger. Future iterations of this framework will continue to refine risk evaluation models, ensuring that compliance remains programmable, precise, and permanent (Zetzsche *et al.*, 2020).
 
     ## 8. Bibliography:
-    *   **Bank for International Settlements (BIS) (2023).** *DeFi: Ecosystem, Risks and Options for Regulation.*
-    *   **Chainalysis (2023).** *The 2023 Geography of Cryptocurrency Report.*
-    *   **DefiLlama (2026).** *Total Value Locked and Protocol Analytics.*
-    *   **European Commission (2023).** *Markets in Crypto-Assets Regulation (MiCA).*
-    *   **HMRC (2024).** *Cryptoassets Manual: Compliance and Reporting.*
-    *   **IOSCO (2023).** *Policy Recommendations for Decentralized Finance (DeFi).*
-    *   **Messari Crypto (2024).** *State of DeFi: Q1 2024 Analysis.*
-    *   **OECD (2022).** *Crypto-Asset Reporting Framework and Amendments.*
-    *   **Zetzsche, D. A., Arner, D. W., & Buckley, R. P. (2020).** *Decentralized Finance: The Future of Financial Regulation.*
+
+    *   **Bank for International Settlements (BIS) (2023).** *DeFi: Ecosystem, Risks and Options for Regulation.* Monetary and Economic Department.
+    *   **Chainalysis (2023).** *The 2023 Geography of Cryptocurrency Report.* [Patterns of cross-border DeFi flow and self-custody risk].
+    *   **DefiLlama (2026).** *Total Value Locked and Protocol Analytics.* [On-chain attribution data for LP reconciliation].
+    *   **European Commission (2023).** *Markets in Crypto-Assets Regulation (MiCA).* [Structural requirements for asset service providers].
+    *   **HMRC (2024).** *Cryptoassets Manual: Compliance and Reporting.* [UK specific tax treatment for DeFi and Staking].
+    *   **IOSCO (2023).** *Policy Recommendations for Decentralized Finance (DeFi).* Final Report FR08/23.
+    *   **Messari Crypto (2024).** *State of DeFi: Q1 2024 Analysis.* [Data on TVL and Liquidity Pool concentration].
+    *   **OECD (2022).** *Crypto-Asset Reporting Framework and Amendments to the Common Reporting Standard.* [Standard for automatic exchange of tax information].
+    *   **Zetzsche, D. A., Arner, D. W., & Buckley, R. P. (2020).** *Decentralized Finance: The Future of Financial Regulation.* University of Luxembourg Law Working Paper.
     """)
