@@ -38,9 +38,9 @@ api.upload_folder(
     repo_id=repo_id,
     repo_type="space",
     allow_patterns=[
+        "app.py",
         "lp_reconciliation.ipynb",
         "requirements.txt",
-        "Dockerfile",
         "README.md"
     ]
 )

@@ -1,0 +1,218 @@
+import os, requests, time, pandas as pd, base64
+import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
+MORALIS_KEY = os.getenv("MORALIS_API_KEY", "")
+ALCHEMY_KEY = os.getenv("ALCHEMY_API_KEY", "")
+
+NATIVE_WRAPPERS = {
+    "ETHEREUM": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    "POLYGON": "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0",
+    "BASE": "0x4200000000000000000000000000000000000006"
+}
+
+def get_historical_price_moralis(address, chain, block=None):
+    if not MORALIS_KEY: return 0
+    m_chain = {"ETHEREUM": "eth", "POLYGON": "polygon", "BASE": "base"}.get(chain.upper(), "eth")
+    url = f"https://deep-index.moralis.io/api/v2.2/erc20/{address}/price?chain={m_chain}"
+    if block: url += f"&to_block={block}"
+    headers = {"accept": "application/json", "X-API-Key": MORALIS_KEY}
+    try:
+        r = requests.get(url, headers=headers, timeout=10).json()
+        return float(r.get("usdPrice", 0))
+    except: return 0
+
+def get_latest_block(chain):
+    url = {"ETHEREUM": f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_KEY}",
+           "POLYGON": f"https://polygon-mainnet.g.alchemy.com/v2/{ALCHEMY_KEY}",
+           "BASE": f"https://base-mainnet.g.alchemy.com/v2/{ALCHEMY_KEY}"}.get(chain.upper())
+    if not url: return 0
+    try:
+        r = requests.post(url, json={"id":1, "jsonrpc":"2.0", "method":"eth_blockNumber"}).json()
+        return int(r.get("result", "0x0"), 16)
+    except: return 0
+
+class AuditResult:
+    def __init__(self, chain, symbol, balance, address):
+        self.chain = chain; self.symbol = symbol; self.balance = balance; self.address = address
+    def to_dict(self): return {"Chain": self.chain.upper(), "Symbol": self.symbol, "Balance": round(self.balance, 4), "Address": self.address}
+
+class AlchemyAdapter:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.urls = {"ethereum": f"https://eth-mainnet.g.alchemy.com/v2/{api_key}",
+                     "polygon": f"https://polygon-mainnet.g.alchemy.com/v2/{api_key}",
+                     "base": f"https://base-mainnet.g.alchemy.com/v2/{api_key}"}
+
+    def get_gas_fee_usd(self, chain, tx_hash, block):
+        url = self.urls.get(chain.lower())
+        if not url: return 0
+        try:
+            p_rec = {"id":1,"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":[tx_hash]}
+            rec = requests.post(url, json=p_rec).json().get("result", {})
+            gas_used = int(rec.get("gasUsed", "0x0"), 16)
+            p_tx = {"id":1,"jsonrpc":"2.0","method":"eth_getTransactionByHash","params":[tx_hash]}
+            tx = requests.post(url, json=p_tx).json().get("result", {})
+            gas_price = int(tx.get("gasPrice", "0x0"), 16)
+            fee_native = (gas_used * gas_price) / 1e18
+            native_addr = NATIVE_WRAPPERS.get(chain.upper(), NATIVE_WRAPPERS["ETHEREUM"])
+            native_price = get_historical_price_moralis(native_addr, chain, block)
+            return fee_native * native_price
+        except: return 0
+
+    def get_positions(self, address):
+        res = []
+        for name, url in self.urls.items():
+            try:
+                p_eth = {"id":1,"jsonrpc":"2.0","method":"eth_getBalance","params":[address,"latest"]}
+                val = int(requests.post(url, json=p_eth).json().get("result","0x0"),16)/1e18
+                if val > 1e-6: res.append(AuditResult(name, "NATIVE", val, "native"))
+                p_t = {"id":1,"jsonrpc":"2.0","method":"alchemy_getTokenBalances","params":[address]}
+                for b in requests.post(url, json=p_t).json().get("result",{}).get("tokenBalances",[]):
+                    bal = int(b["tokenBalance"],16)
+                    if bal > 0: res.append(AuditResult(name, "TOKEN", bal/1e18, b["contractAddress"]))
+            except: pass
+        return res
+
+    def get_recent_transactions(self, address, limit):
+        txs = []
+        seen_hashes = set()
+        for name, url in self.urls.items():
+            for direction in [{"fromAddress": address}, {"toAddress": address}]:
+                p = {"id":1,"jsonrpc":"2.0","method":"alchemy_getAssetTransfers","params":[{
+                    **direction, "maxCount":f"0x{int(limit):x}", "category":["external","erc20"], "withMetadata":True
+                }]}
+                try:
+                    for tx in requests.post(url, json=p).json().get("result",{}).get("transfers",[]):
+                        if tx["hash"] in seen_hashes: continue
+                        seen_hashes.add(tx["hash"])
+                        raw = tx.get("rawContract", {})
+                        contract = raw.get("address", "native") if raw else "native"
+                        txs.append({"Chain":name.upper(), "Hash":tx["hash"], "From":tx.get("from"),
+                                    "Asset":tx.get("asset"), "Value":tx.get("value"), 
+                                    "Block":int(tx["blockNum"],16), "To":tx["to"], "Contract": contract})
+                except: pass
+        return txs
+
+class UniversalAuditEngine:
+    def __init__(self, key): self.adapter = AlchemyAdapter(key)
+    def run_audit(self, addr): return [p.to_dict() for p in self.adapter.get_positions(addr)]
+    def get_recent_history(self, addr, lim): return self.adapter.get_recent_transactions(addr, lim)
+    def get_gas_cost(self, chain, h, b): return self.adapter.get_gas_fee_usd(chain, h, b)
+
+def run_compliance_report(txs):
+    if not txs: return "No transaction data available."
+    risk_flags = []
+    for tx in txs:
+        val = float(tx.get('Value', 0) or 0)
+        if val > 50: risk_flags.append({"Hash": tx['Hash'], "Risk": "Medium", "Issue": "High Value Transfer (>50 tokens)"})
+        if tx.get('From') == tx.get('To') and tx.get('From') is not None:
+            risk_flags.append({"Hash": tx['Hash'], "Risk": "High", "Issue": "Self-Transfer Detected"})
+    if not risk_flags: return "✅ No critical compliance risks detected in recent history."
+    return pd.DataFrame(risk_flags)
+
+# --- STREAMLIT UI ---
+st.set_page_config(page_title="Crypto Audit Dashboard", page_icon="📊", layout="wide")
+
+st.title("📊 LP Reconciliation & Multi-Chain Audit")
+st.markdown("Automated, real-time mechanism for fetching cross-chain balances, calculating P&L using historical block height pricing, and identifying CARF compliance risks.")
+
+# Sidebar / Config
+st.sidebar.header("Audit Configuration")
+wallet_input = st.sidebar.text_input("Target Wallet", value="0x28c6c06298d514db089934071355e5743bf21d60")
+limit_input = st.sidebar.slider("Tx Limit", min_value=1, max_value=10, value=10)
+timeframe_input = st.sidebar.selectbox("Timeframe", options=['24h', '1w', '1m'], index=0)
+
+if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
+    with st.spinner(f"Auditing {wallet_input[:10]}... [Timeframe: {timeframe_input}]"):
+        engine = UniversalAuditEngine(ALCHEMY_KEY)
+        data = engine.run_audit(wallet_input)
+        tx_data = engine.get_recent_history(wallet_input, limit_input)
+        
+        st.session_state['tx_data'] = tx_data  # Store for compliance module
+
+        total_value = 0; total_gain = 0
+        for pos in data:
+            chain = pos["Chain"]
+            addr = pos["Address"]
+            is_native = (addr == "native" or addr is None)
+            
+            latest_block = get_latest_block(chain)
+            block_offsets = {'24h': 7200, '1w': 50400, '1m': 216000}
+            hist_block = latest_block - block_offsets.get(timeframe_input, 7200)
+            
+            if is_native:
+                wrapper = NATIVE_WRAPPERS.get(chain.upper(), NATIVE_WRAPPERS["ETHEREUM"])
+                curr_price = get_historical_price_moralis(wrapper, chain) or 2500
+                hist_price = get_historical_price_moralis(wrapper, chain, hist_block) or curr_price
+            else:
+                curr_price = get_historical_price_moralis(addr, chain)
+                hist_price = get_historical_price_moralis(addr, chain, hist_block)
+            
+            unit_cost = 0; gas_cost = 0
+            s_addr = str(addr or "").lower()
+            s_wall = str(wallet_input or "").lower()
+            asset_txs = [t for t in tx_data if str(t.get('Contract', '')).lower() == s_addr and str(t.get('To', '')).lower() == s_wall]
+            if asset_txs:
+                first_tx = sorted(asset_txs, key=lambda x: x['Block'])[0]
+                unit_cost = get_historical_price_moralis(addr, chain, first_tx['Block'])
+                gas_cost = engine.get_gas_cost(chain, first_tx['Hash'], first_tx['Block'])
+            
+            total_pos_cost = (unit_cost * pos['Balance']) + gas_cost
+            total_pos_value = pos["Balance"] * curr_price
+            
+            if curr_price == 0 and not is_native:
+                pos["Price (USD)"] = "N/A"
+                pos["Value (USD)"] = "N/A"
+                pos[f"Change ({timeframe_input})"] = "N/A"
+                pos["Gas Expense"] = "N/A"
+                pos["Overall ROI (%)"] = "N/A"
+            else:
+                pos["Price (USD)"] = round(curr_price, 2)
+                pos["Value (USD)"] = round(total_pos_value, 2)
+                pos[f"Change ({timeframe_input})"] = round(((curr_price - hist_price)/hist_price*100) if hist_price > 0 else 0, 2)
+                pos["Gas Expense"] = round(gas_cost, 2)
+                pos["Overall ROI (%)"] = round(((total_pos_value - total_pos_cost)/total_pos_cost*100) if total_pos_cost > 0 else 0, 2)
+                total_value += total_pos_value
+                total_gain += (total_pos_value - total_pos_cost) if total_pos_cost > 0 else 0
+                
+        df_final = pd.DataFrame(data)
+        st.session_state['df_final'] = df_final
+        
+        avg_roi = (total_gain / total_value * 100) if total_value > 0 else 0
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Portfolio Value", f"${total_value:,.2f}")
+        with col2:
+            st.metric("Performance (ROI Incl. Gas)", f"{avg_roi:+.2f}%")
+            
+        st.subheader("Asset Breakdown")
+        st.dataframe(df_final, use_container_width=True)
+
+st.divider()
+
+col_comp, col_exp = st.columns(2)
+
+with col_comp:
+    if st.button("🛡️ Generate Compliance Risk Report"):
+        if 'tx_data' in st.session_state:
+            st.subheader("🛡️ CARF Compliance & Risk Summary")
+            report = run_compliance_report(st.session_state['tx_data'])
+            if isinstance(report, pd.DataFrame):
+                st.dataframe(report, use_container_width=True)
+            else:
+                st.info(report)
+        else:
+            st.warning("⚠️ Please run the Audit from the sidebar first!")
+
+with col_exp:
+    if 'df_final' in st.session_state:
+        csv = st.session_state['df_final'].to_csv(index=False)
+        st.download_button(
+            label="💾 Download Report (CSV)",
+            data=csv,
+            file_name=f"audit_{int(time.time())}.csv",
+            mime="text/csv"
+        )

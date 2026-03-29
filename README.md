@@ -3,7 +3,9 @@ title: Crypto Audit Dashboard
 emoji: 📊
 colorFrom: blue
 colorTo: green
-sdk: docker
+sdk: streamlit
+sdk_version: 1.32.2
+app_file: app.py
 pinned: false
 ---
 # Crypto Asset Reporting and Liquidity Pool Reconciliation Framework
