@@ -9,7 +9,7 @@ pinned: false
 ---
 # Crypto Asset Reporting and Liquidity Pool Reconciliation Framework
 
- **[Live Demo: Interactive Crypto Audit Dashboard](https://carf-reconciliation.streamlit.app)** (Powered by Streamlit Community Cloud)
+ **[Live Demo: Interactive Crypto Audit Dashboard](https:/[/carf-reconciliation.streamlit.app](https://crypto-asset-reporting-framework-jifvwvzuqznpbkl6wbct6x.streamlit.app/))** (Powered by Streamlit Community Cloud)
 
 A professional-grade framework containing both a native **Streamlit Web Dashboard** and Jupyter notebooks for **CARF (Crypto-Asset Reporting Framework)** compliance, multi-chain portfolio reconciliation, and automated P&L auditing.
 
