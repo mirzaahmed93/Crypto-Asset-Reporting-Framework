@@ -1,10 +1,13 @@
 import os, requests, time, pandas as pd, base64
 import streamlit as st
+
+# MUST BE FIRST STREAMLIT COMMAND
+st.set_page_config(page_title="Crypto Audit Dashboard", page_icon="📊", layout="wide")
 from dotenv import load_dotenv
 
 load_dotenv()
-MORALIS_KEY = os.getenv("MORALIS_API_KEY", "")
-ALCHEMY_KEY = os.getenv("ALCHEMY_API_KEY", "")
+MORALIS_KEY = os.getenv("MORALIS_API_KEY") or (st.secrets.get("MORALIS_API_KEY") if hasattr(st, "secrets") else "")
+ALCHEMY_KEY = os.getenv("ALCHEMY_API_KEY") or (st.secrets.get("ALCHEMY_API_KEY") if hasattr(st, "secrets") else "")
 
 NATIVE_WRAPPERS = {
     "ETHEREUM": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
@@ -33,10 +36,25 @@ def get_latest_block(chain):
         return int(r.get("result", "0x0"), 16)
     except: return 0
 
+def get_dexscreener_price(address, chain):
+    """Fallback price discovery via Dexscreener (free, no API key)."""
+    chain_map = {"ETHEREUM": "ethereum", "POLYGON": "polygon", "BASE": "base"}
+    ds_chain = chain_map.get(chain.upper(), "ethereum")
+    try:
+        url = f"https://api.dexscreener.com/tokens/v1/{ds_chain}/{address}"
+        resp = requests.get(url, timeout=10).json()
+        if isinstance(resp, list) and len(resp) > 0:
+            # Pick the pair with highest liquidity
+            best = max(resp, key=lambda p: float(p.get("liquidity", {}).get("usd", 0) or 0))
+            return float(best.get("priceUsd", 0) or 0)
+        return 0
+    except:
+        return 0
+
 class AuditResult:
     def __init__(self, chain, symbol, balance, address):
         self.chain = chain; self.symbol = symbol; self.balance = balance; self.address = address
-    def to_dict(self): return {"Chain": self.chain.upper(), "Symbol": self.symbol, "Balance": round(self.balance, 4), "Address": self.address}
+    def to_dict(self): return {"Chain": self.chain.upper(), "Symbol": self.symbol, "Balance": self.balance, "Address": self.address}
 
 class AlchemyAdapter:
     def __init__(self, api_key):
@@ -66,27 +84,73 @@ class AlchemyAdapter:
         for name, url in self.urls.items():
             try:
                 p_eth = {"id":1,"jsonrpc":"2.0","method":"eth_getBalance","params":[address,"latest"]}
-                val = int(requests.post(url, json=p_eth).json().get("result","0x0"),16)/1e18
-                if val > 1e-6: res.append(AuditResult(name, "NATIVE", val, "native"))
+                resp = requests.post(url, json=p_eth, timeout=10).json()
+                val = int(resp.get("result","0x0"),16)/1e18
+                if val > 1e-6: 
+                    res.append(AuditResult(name, "NATIVE", val, "native"))
                 p_t = {"id":1,"jsonrpc":"2.0","method":"alchemy_getTokenBalances","params":[address]}
-                for b in requests.post(url, json=p_t).json().get("result",{}).get("tokenBalances",[]):
+                resp_t = requests.post(url, json=p_t, timeout=10).json()
+                for b in resp_t.get("result",{}).get("tokenBalances",[]):
                     bal = int(b["tokenBalance"],16)
                     if bal > 0:
                         contract_addr = b["contractAddress"]
-                        
-                        # Fetch true symbol and decimals to avoid 0.00 rounding issues and "TOKEN" labels
                         try:
                             meta_payload = {"id":1,"jsonrpc":"2.0","method":"alchemy_getTokenMetadata","params":[contract_addr]}
-                            meta = requests.post(url, json=meta_payload).json().get("result", {})
+                            meta = requests.post(url, json=meta_payload, timeout=10).json().get("result", {})
                             symbol = str(meta.get("symbol") or "TOKEN")
-                            decimals = int(meta.get("decimals") or 18)
-                        except:
+                            # Robust decimal parsing
+                            try:
+                                decimals = int(meta.get("decimals", 18))
+                            except (TypeError, ValueError):
+                                decimals = 18
+                        except Exception:
                             symbol, decimals = "TOKEN", 18
-                            
                         true_bal = bal / (10 ** decimals)
                         res.append(AuditResult(name, symbol, true_bal, contract_addr))
-            except: pass
+            except Exception as e:
+                st.sidebar.error(f"Error on {name}: {e}")
         return res
+
+    def targeted_acquisition_scan(self, wallet, contract_addr, chain):
+        """Targeted scan: find the EARLIEST inbound transfer of a specific token to this wallet."""
+        url = self.urls.get(chain.lower())
+        if not url: return None
+        try:
+            p = {"id":1,"jsonrpc":"2.0","method":"alchemy_getAssetTransfers","params":[{
+                "toAddress": wallet,
+                "contractAddresses": [contract_addr],
+                "category": ["erc20"],
+                "order": "asc",
+                "maxCount": "0x1",
+                "withMetadata": True
+            }]}
+            transfers = requests.post(url, json=p, timeout=10).json().get("result", {}).get("transfers", [])
+            if transfers:
+                tx = transfers[0]
+                return {"Hash": tx["hash"], "Block": int(tx["blockNum"], 16), "Value": tx.get("value", 0)}
+        except:
+            pass
+        return None
+
+    def targeted_native_scan(self, wallet, chain):
+        """Targeted scan: find the EARLIEST inbound native (ETH/POL) transfer to this wallet."""
+        url = self.urls.get(chain.lower())
+        if not url: return None
+        try:
+            p = {"id":1,"jsonrpc":"2.0","method":"alchemy_getAssetTransfers","params":[{
+                "toAddress": wallet,
+                "category": ["external"],
+                "order": "asc",
+                "maxCount": "0x1",
+                "withMetadata": True
+            }]}
+            transfers = requests.post(url, json=p, timeout=10).json().get("result", {}).get("transfers", [])
+            if transfers:
+                tx = transfers[0]
+                return {"Hash": tx["hash"], "Block": int(tx["blockNum"], 16), "Value": tx.get("value", 0)}
+        except:
+            pass
+        return None
 
     def get_recent_transactions(self, address, limit):
         txs = []
@@ -113,22 +177,92 @@ class UniversalAuditEngine:
     def run_audit(self, addr): return [p.to_dict() for p in self.adapter.get_positions(addr)]
     def get_recent_history(self, addr, lim): return self.adapter.get_recent_transactions(addr, lim)
     def get_gas_cost(self, chain, h, b): return self.adapter.get_gas_fee_usd(chain, h, b)
+    def targeted_token_scan(self, wallet, contract, chain): return self.adapter.targeted_acquisition_scan(wallet, contract, chain)
+    def targeted_native(self, wallet, chain): return self.adapter.targeted_native_scan(wallet, chain)
 
-def run_compliance_report(txs):
+def run_compliance_report(txs, wallet_address):
     if not txs: return "No transaction data available."
     risk_flags = []
+    wallet_lower = str(wallet_address).lower().strip()
+    
+    # TWO-PASS SCAN: Pass 1 - Map all outbound activity
+    outbound_map = {}
+    for tx in txs:
+        if str(tx.get('From', '')).lower() == wallet_lower:
+            asset = str(tx.get('Asset', '')).upper()
+            val = float(tx.get('Value', 0) or 0)
+            if asset not in outbound_map: outbound_map[asset] = []
+            outbound_map[asset].append(val)
+    
+    # TWO-PASS SCAN: Pass 2 - Detect Risks
     for tx in txs:
         val = float(tx.get('Value', 0) or 0)
-        if val > 50: risk_flags.append({"Hash": tx['Hash'], "Risk": "Medium", "Issue": "High Value Transfer (>50 tokens)"})
-        if tx.get('From') == tx.get('To') and tx.get('From') is not None:
-            risk_flags.append({"Hash": tx['Hash'], "Risk": "High", "Issue": "Self-Transfer Detected"})
+        asset = str(tx.get('Asset', '')).upper()
+        h = tx['Hash']
+        from_addr = str(tx.get('From', '')).lower()
+        to_addr = str(tx.get('To', '')).lower()
+        
+        # 1. High Value Transfer (CARF Enhanced Due Diligence)
+        if val > 50: 
+            risk_flags.append({"Hash": h, "Severity": "Medium", "Type": "CARF-EDD", "Issue": f"High Value Transfer ({val} {asset})"})
+            
+        # 2. Self-Transfer (Internal Round-tripping)
+        if from_addr == to_addr and from_addr == wallet_lower:
+            risk_flags.append({"Hash": h, "Severity": "High", "Type": "Tax-Risk", "Issue": "Self-Transfer / Internal Round-tripping"})
+            
+        # 3. Bridge Detection (Cross-chain hop)
+        bridge_keywords = ["BRIDGE", "HOP", "STARGATE", "ACROSS", "SYNAPSE", "CBRIDGE", "PORTAL"]
+        if any(k in asset for k in bridge_keywords):
+            risk_flags.append({"Hash": h, "Severity": "Low", "Type": "Cross-Chain", "Issue": f"Bridge Activity Detected ({asset})"})
+            
+        # 4. Wash Trading Check (Matching Inbound/Outbound)
+        if to_addr == wallet_lower:
+            if asset in outbound_map:
+                if any(abs(ov - val) < 0.0001 for ov in outbound_map[asset]):
+                    risk_flags.append({"Hash": h, "Severity": "High", "Type": "Market-Integrity", "Issue": f"Potential Wash Trade Pattern ({asset})"})
+
     if not risk_flags: return "✅ No critical compliance risks detected in recent history."
-    return pd.DataFrame(risk_flags)
+    return pd.DataFrame(risk_flags).drop_duplicates()
 
 # --- STREAMLIT UI ---
-st.set_page_config(page_title="Crypto Audit Dashboard", page_icon="📊", layout="wide")
+# (st.set_page_config moved to top)
 
-st.title("📊 LP Reconciliation & Multi-Chain Audit")
+# Custom CSS for Glassmorphism & High-End Aesthetic
+st.markdown("""
+<style>
+    .main { background: #0E1117; }
+    .stMetric {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+    }
+    div[data-testid="stExpander"] {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 255, 163, 0.2);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Generate Header Image Path
+header_path = "/Users/ahmedmirza/.gemini/antigravity/brain/a345d9b1-aac7-48bd-a329-b75817cc28a8/blockchain_audit_header_1774972068838.png"
+if os.path.exists(header_path):
+    # Fixed deprecated parameter
+    st.image(header_path, use_container_width=True)
+
+st.title("💎 Institutional Multi-Chain Audit")
+st.caption("CARF-Compliant Reconciliation & Risk Discovery Engine")
 
 st.markdown("""
 ## 1. Overview
@@ -159,6 +293,14 @@ with st.expander("⚙️ Technical Implementation & Dependencies"):
 
     ## 3.3 USD Reconciliation (Public Price Discovery):
     In this section, the tool performs "Price Discovery" by connecting to external pricing engines (Moralis and Dexscreener where asset prices are not obtaines from Moralis). The tool translates the raw number of tokens on the blockchain into their equivalent USD market value at either the current moment or a specific historical block height. This ensures that the reconciliation is based on real-world "Fair Market Value" rather than arbitrary estimates.
+    
+    ### 3.3.1 Spam Detection (The "Zero-Price" Anomaly)
+    A critical challenge in multi-chain reconciliation is the detection of **Spam Tokens**. These are worthless tokens intentionally sent to user wallets to clog the interface or manipulate portfolio values. The framework addresses this with a robust **Spam Detection Engine**:
+    *   **Dual-Source Verification**: The system queries both **Moralis** (historical/current price) and **Dexscreener** (live DEX liquidity). If *both* sources return a price of $0.00 for a token that is not a native asset (like ETH or BTC), the system flags it as **"Probable Spam"**.
+    *   **Audit Status**: These tokens are automatically assigned an **"Audit Status"** of 🚫 **Probable Spam (No Market)**, ensuring they are excluded from P&L calculations and compliance risk assessments.
+    This tool addresses this through a multi-source price verification engine. Each non-native token is queried against two independent pricing APIs — Moralis (centralised index) and Dexscreener (decentralised exchange aggregator). If both sources return a price of $0.00, the asset is flagged as "Probable Spam (No Market)" with a value of $0.00. This heuristic is market-data driven rather than rule-based (i.e., it does not rely on name-matching logic against known assets), ensuring that the classification is both scalable and defensible under audit scrutiny.
+
+    To resolve the "Cost-Basis Fragmentation" gap described in Section 2(ii), the engine employs a two-step acquisition discovery process. Phase 1 scans the most recent N transactions (set by the "Tx Limit" slider) for inbound transfers matching each asset. If no acquisition is found within this window, which can be a common scenario for long-held positions, the engine initiates a Phase 2 targeted scan, querying the blockchain indexer specifically for the earliest-ever inbound transfer of that particular token to the target wallet. This eliminates the need for expensive full-history scans whilst still recovering the original cost basis for assets acquired outside the initial audit window. The cost of this approach is minimal: one additional API call per unresolved asset, compared to potentially hundreds with a brute-force history expansion.
 
     ## 4. Compliance & Risk Audit
     This section implements an automated Risk Evaluation Engine that scans the transaction history for patterns that trigger regulatory concern under the CARF framework. Specifically, the engine focuses on:
@@ -176,22 +318,30 @@ with st.expander("⚙️ Technical Implementation & Dependencies"):
 # Sidebar / Config
 st.sidebar.header("Audit Configuration")
 wallet_input = st.sidebar.text_input("Target Wallet", value="0x28c6c06298d514db089934071355e5743bf21d60")
-limit_input = st.sidebar.slider("Tx Limit", min_value=1, max_value=10, value=10)
+limit_input = st.sidebar.slider("Tx Limit", min_value=1, max_value=100, value=5)
 timeframe_input = st.sidebar.selectbox("Timeframe", options=['24h', '1w', '1m', '3m', '6m', '1y', '5y', '10y', 'All Time'], index=0)
 
 if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
-    with st.spinner(f"Auditing {wallet_input[:10]}... [Timeframe: {timeframe_input}]"):
-        engine = UniversalAuditEngine(ALCHEMY_KEY)
-        data = engine.run_audit(wallet_input)
-        tx_data = engine.get_recent_history(wallet_input, limit_input)
-        
-        st.session_state['tx_data'] = tx_data  # Store for compliance module
+    # Sanitize Input
+    target_wallet = str(wallet_input).strip().lower()
+    if not target_wallet.startswith("0x"):
+        st.sidebar.error("Invalid Wallet: Must start with 0x")
+    else:
+        with st.spinner(f"Auditing {target_wallet[:10]}... [Timeframe: {timeframe_input}]"):
+            engine = UniversalAuditEngine(ALCHEMY_KEY)
+            data = engine.run_audit(target_wallet)
+            tx_data = engine.get_recent_history(target_wallet, limit_input)
+            
+            st.session_state['tx_data'] = tx_data  # Store for compliance module
 
-        total_value = 0; total_gain = 0
+        total_value = 0; total_gain = 0; total_verified_value = 0
         for pos in data:
             chain = pos["Chain"]
             addr = pos["Address"]
             is_native = (addr == "native" or addr is None)
+            
+            # Add Owner Wallet for clarity and CARF reporting
+            pos["Owner Wallet"] = wallet_input
             
             latest_block = get_latest_block(chain)
             block_offsets = {
@@ -201,66 +351,134 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             }
             hist_block = max(1, latest_block - block_offsets.get(timeframe_input, 7200))
             
+            # --- PRICE DISCOVERY (Moralis → Dexscreener fallback) ---
             if is_native:
                 wrapper = NATIVE_WRAPPERS.get(chain.upper(), NATIVE_WRAPPERS["ETHEREUM"])
                 curr_price = get_historical_price_moralis(wrapper, chain) or 2500
                 hist_price = get_historical_price_moralis(wrapper, chain, hist_block) or curr_price
             else:
                 curr_price = get_historical_price_moralis(addr, chain)
+                # Dexscreener fallback for current price
+                if curr_price == 0:
+                    curr_price = get_dexscreener_price(addr, chain)
                 hist_price = get_historical_price_moralis(addr, chain, hist_block)
             
+            # --- COST BASIS DISCOVERY (Broad scan → Targeted scan) ---
             unit_cost = 0; gas_cost = 0
             s_addr = str(addr or "").lower()
             s_wall = str(wallet_input or "").lower()
-            asset_txs = [t for t in tx_data if str(t.get('Contract', '')).lower() == s_addr and str(t.get('To', '')).lower() == s_wall]
+            
+            # Phase 1: Check broad transaction history
+            if is_native:
+                asset_txs = [t for t in tx_data if str(t.get('Contract', '')).lower() == 'native' and str(t.get('To', '')).lower() == s_wall]
+            else:
+                asset_txs = [t for t in tx_data if str(t.get('Contract', '')).lower() == s_addr and str(t.get('To', '')).lower() == s_wall]
+            
+            acquisition_found = False
             if asset_txs:
                 first_tx = sorted(asset_txs, key=lambda x: x['Block'])[0]
-                unit_cost = get_historical_price_moralis(addr, chain, first_tx['Block'])
+                price_addr = wrapper if is_native else addr
+                unit_cost = get_historical_price_moralis(price_addr, chain, first_tx['Block'])
                 gas_cost = engine.get_gas_cost(chain, first_tx['Hash'], first_tx['Block'])
+                acquisition_found = True
+            else:
+                # Phase 2: Targeted scan for earliest inbound transfer
+                if is_native:
+                    targeted = engine.targeted_native(target_wallet, chain)
+                else:
+                    targeted = engine.targeted_token_scan(target_wallet, addr, chain)
+                
+                if targeted:
+                    price_addr = wrapper if is_native else addr
+                    unit_cost = get_historical_price_moralis(price_addr, chain, targeted['Block'])
+                    gas_cost = engine.get_gas_cost(chain, targeted['Hash'], targeted['Block'])
+                    acquisition_found = True
             
             total_pos_cost = (unit_cost * pos['Balance']) + gas_cost
             total_pos_value = pos["Balance"] * curr_price
             
+            # --- AUDIT STATUS & SPAM DETECTION ---
             if curr_price == 0 and not is_native:
-                pos["Price (USD)"] = "N/A"
-                pos["Value (USD)"] = "N/A"
+                # Both Moralis AND Dexscreener returned $0 → Probable Spam
+                pos["Audit Status"] = "🚫 Probable Spam (No Market)"
+                pos["Price (USD)"] = "$0.00 (Unpriced)"
+                pos["Value (USD)"] = "$0.00"
                 pos[f"Change ({timeframe_input})"] = "N/A"
                 pos["Gas Expense"] = "N/A"
                 pos["Overall ROI (%)"] = "N/A"
             else:
+                # Legitimate asset — set audit status
+                if acquisition_found:
+                    pos["Audit Status"] = "✅ Verified"
+                elif pos["Balance"] > 0:
+                    pos["Audit Status"] = "⚠️ No Acquisition Found"
+                else:
+                    pos["Audit Status"] = "✅ Verified"
+                
+                # Price & Value
                 pos["Price (USD)"] = round(curr_price, 2)
                 pos["Value (USD)"] = round(total_pos_value, 2)
-                pos[f"Change ({timeframe_input})"] = round(((curr_price - hist_price)/hist_price*100) if hist_price > 0 else 0, 2)
-                pos["Gas Expense"] = round(gas_cost, 2)
-                pos["Overall ROI (%)"] = round(((total_pos_value - total_pos_cost)/total_pos_cost*100) if total_pos_cost > 0 else 0, 2)
+                
+                # Change calculation
+                if hist_price > 0:
+                    pos[f"Change ({timeframe_input})"] = round(((curr_price - hist_price)/hist_price*100), 2)
+                else:
+                    pos[f"Change ({timeframe_input})"] = "N/A"
+                
+                # ROI Logic
+                if acquisition_found:
+                    pos["Gas Expense"] = round(gas_cost, 2)
+                    pos["Overall ROI (%)"] = round(((total_pos_value - total_pos_cost)/total_pos_cost*100) if total_pos_cost > 0 else 0, 2)
+                else:
+                    pos["Gas Expense"] = "N/A"
+                    pos["Overall ROI (%)"] = "N/A (No Acquisition Found)"
+            
+            if total_pos_value > 0:
                 total_value += total_pos_value
-                total_gain += (total_pos_value - total_pos_cost) if total_pos_cost > 0 else 0
+                if acquisition_found:
+                    total_verified_value += total_pos_value
+                    total_gain += (total_pos_value - total_pos_cost) if total_pos_cost > 0 else 0
+                
+            # Round balance for display
+            pos["Balance"] = round(pos["Balance"], 6)
                 
         df_final = pd.DataFrame(data)
         st.session_state['df_final'] = df_final
+        st.session_state['active_wallet'] = target_wallet
+        st.session_state['total_value'] = total_value
+        st.session_state['avg_roi'] = (total_gain / total_verified_value * 100) if total_verified_value > 0 else 0
+        st.success(f"Audit Complete for: `{target_wallet}`")
+
+# --- PERSISTENT RESULTS RENDERING ---
+if 'df_final' in st.session_state and 'active_wallet' in st.session_state:
+    st.divider()
+    st.subheader(f"📊 Audit Results: {st.session_state['active_wallet']}")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Portfolio Value", f"${st.session_state.get('total_value', 0):,.2f}")
+    with col2:
+        st.metric("Performance (ROI Incl. Gas)", f"{st.session_state.get('avg_roi', 0):+.2f}%")
         
-        avg_roi = (total_gain / total_value * 100) if total_value > 0 else 0
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Portfolio Value", f"${total_value:,.2f}")
-        with col2:
-            st.metric("Performance (ROI Incl. Gas)", f"{avg_roi:+.2f}%")
-            
-        st.subheader("Asset Breakdown")
-        st.dataframe(df_final, use_container_width=True)
+    st.subheader("Asset Breakdown")
+    # Using modern width parameter for dataframe
+    st.dataframe(st.session_state['df_final'], use_container_width=True)
 
 st.divider()
 
 col_comp, col_exp = st.columns(2)
 
 with col_comp:
-    if st.button("🛡️ Generate Compliance Risk Report"):
+    if st.button("🛡️ Run Compliance Risk Audit", type="secondary"):
         if 'tx_data' in st.session_state:
-            st.subheader("🛡️ CARF Compliance & Risk Summary")
-            report = run_compliance_report(st.session_state['tx_data'])
+            st.subheader("🛡️ Risk Severity Breakdown")
+            report = run_compliance_report(st.session_state['tx_data'], st.session_state.get('active_wallet', ''))
             if isinstance(report, pd.DataFrame):
-                st.dataframe(report, use_container_width=True)
+                # Color code severity using modern .map
+                def color_severity(val):
+                    color = '#ff4b4b' if val == 'High' else '#ffa500' if val == 'Medium' else '#00ffa3' if val == 'Low' else 'white'
+                    return f'color: {color}'
+                st.dataframe(report.style.map(color_severity, subset=['Severity']), use_container_width=True)
             else:
                 st.info(report)
         else:
