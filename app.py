@@ -10,9 +10,16 @@ MORALIS_KEY = os.getenv("MORALIS_API_KEY") or (st.secrets.get("MORALIS_API_KEY")
 ALCHEMY_KEY = os.getenv("ALCHEMY_API_KEY") or (st.secrets.get("ALCHEMY_API_KEY") if hasattr(st, "secrets") else "")
 
 NATIVE_WRAPPERS = {
-    "ETHEREUM": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-    "POLYGON": "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0",
-    "BASE": "0x4200000000000000000000000000000000000006"
+    "ETHEREUM": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",  # WETH (for Moralis)
+    "POLYGON": "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0",  # MATIC ERC-20 (for Moralis)
+    "BASE": "0x4200000000000000000000000000000000000006"       # WETH on Base (for Moralis)
+}
+
+# Separate wrapper addresses used for Dexscreener fallback (on-chain addresses per network)
+DEXSCREENER_NATIVE_WRAPPERS = {
+    "ETHEREUM": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",  # WETH on Ethereum
+    "POLYGON": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",  # WMATIC on Polygon
+    "BASE": "0x4200000000000000000000000000000000000006"       # WETH on Base
 }
 
 def get_historical_price_moralis(address, chain, block=None):
@@ -351,20 +358,36 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             }
             hist_block = max(1, latest_block - block_offsets.get(timeframe_input, 7200))
             
-            # --- PRICE DISCOVERY (Moralis → Dexscreener fallback) ---
+            # --- PRICE DISCOVERY (Moralis → Dexscreener fallback for ALL asset types) ---
+            price_source = "Unknown"
             if is_native:
                 wrapper = NATIVE_WRAPPERS.get(chain.upper(), NATIVE_WRAPPERS["ETHEREUM"])
-                curr_price = get_historical_price_moralis(wrapper, chain) or 2500
+                ds_wrapper = DEXSCREENER_NATIVE_WRAPPERS.get(chain.upper(), DEXSCREENER_NATIVE_WRAPPERS["ETHEREUM"])
+                curr_price = get_historical_price_moralis(wrapper, chain)
+                if curr_price > 0:
+                    price_source = "Moralis (Block-Precise)"
+                else:
+                    # Dexscreener fallback — no hardcoded estimates
+                    curr_price = get_dexscreener_price(ds_wrapper, chain)
+                    if curr_price > 0:
+                        price_source = "Dexscreener (Live DEX)"
+                    else:
+                        price_source = "Unpriced (No Market)"
                 hist_price = get_historical_price_moralis(wrapper, chain, hist_block) or curr_price
             else:
                 curr_price = get_historical_price_moralis(addr, chain)
-                # Dexscreener fallback for current price
-                if curr_price == 0:
+                if curr_price > 0:
+                    price_source = "Moralis (Block-Precise)"
+                else:
                     curr_price = get_dexscreener_price(addr, chain)
+                    if curr_price > 0:
+                        price_source = "Dexscreener (Live DEX)"
+                    # If still 0 → spam path handles label below
                 hist_price = get_historical_price_moralis(addr, chain, hist_block)
             
             # --- COST BASIS DISCOVERY (Broad scan → Targeted scan) ---
             unit_cost = 0; gas_cost = 0
+            cost_basis_source = "Unknown"
             s_addr = str(addr or "").lower()
             s_wall = str(wallet_input or "").lower()
             
@@ -381,6 +404,7 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 unit_cost = get_historical_price_moralis(price_addr, chain, first_tx['Block'])
                 gas_cost = engine.get_gas_cost(chain, first_tx['Hash'], first_tx['Block'])
                 acquisition_found = True
+                cost_basis_source = "Tx History (Phase 1)"
             else:
                 # Phase 2: Targeted scan for earliest inbound transfer
                 if is_native:
@@ -393,6 +417,7 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                     unit_cost = get_historical_price_moralis(price_addr, chain, targeted['Block'])
                     gas_cost = engine.get_gas_cost(chain, targeted['Hash'], targeted['Block'])
                     acquisition_found = True
+                    cost_basis_source = "Targeted Scan (Phase 2)"
             
             total_pos_cost = (unit_cost * pos['Balance']) + gas_cost
             total_pos_value = pos["Balance"] * curr_price
@@ -406,6 +431,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 pos[f"Change ({timeframe_input})"] = "N/A"
                 pos["Gas Expense"] = "N/A"
                 pos["Overall ROI (%)"] = "N/A"
+                pos["Price Source"] = "None (Probable Spam)"
+                pos["Cost Basis Source"] = "N/A"
             else:
                 # Legitimate asset — set audit status
                 if acquisition_found:
@@ -418,6 +445,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 # Price & Value
                 pos["Price (USD)"] = round(curr_price, 2)
                 pos["Value (USD)"] = round(total_pos_value, 2)
+                pos["Price Source"] = price_source
+                pos["Cost Basis Source"] = cost_basis_source if acquisition_found else "Not Found"
                 
                 # Change calculation
                 if hist_price > 0:
