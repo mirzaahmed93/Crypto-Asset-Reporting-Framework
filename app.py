@@ -438,8 +438,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 pos["Audit Status"] = "🚫 Probable Spam (No Market)"
                 pos["Price (USD)"] = "$0.00 (Unpriced)"
                 pos["Value (USD)"] = "$0.00"
-                pos[f"Change ({timeframe_input})"] = "N/A"
-                pos["Gas Expense"] = "N/A"
+                pos[f"Change ({timeframe_input}) (%)"] = "N/A"
+                pos["Gas Expense (USD)"] = "N/A"
                 pos["Overall ROI (%)"] = "N/A"
                 pos["Price Source"] = "None (Probable Spam)"
                 pos["Cost Basis Source"] = "N/A"
@@ -464,16 +464,16 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 
                 # Change calculation
                 if hist_price > 0:
-                    pos[f"Change ({timeframe_input})"] = round(((curr_price - hist_price)/hist_price*100), 2)
+                    pos[f"Change ({timeframe_input}) (%)"] = round(((curr_price - hist_price)/hist_price*100), 2)
                 else:
-                    pos[f"Change ({timeframe_input})"] = "N/A"
+                    pos[f"Change ({timeframe_input}) (%)"] = "N/A"
                 
                 # ROI Logic
                 if acquisition_found:
-                    pos["Gas Expense"] = round(gas_cost, 2)
+                    pos["Gas Expense (USD)"] = round(gas_cost, 2)
                     pos["Overall ROI (%)"] = round(((total_pos_value - total_pos_cost)/total_pos_cost*100) if total_pos_cost > 0 else 0, 2)
                 else:
-                    pos["Gas Expense"] = "N/A"
+                    pos["Gas Expense (USD)"] = "N/A"
                     pos["Overall ROI (%)"] = "N/A (No Acquisition Found)"
             
             if total_pos_value > 0:
