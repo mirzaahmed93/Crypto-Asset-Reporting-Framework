@@ -462,7 +462,7 @@ if 'df_final' in st.session_state and 'active_wallet' in st.session_state:
         
     st.subheader("Asset Breakdown")
     # Using modern width parameter for dataframe
-    st.dataframe(st.session_state['df_final'], width='stretch')
+    st.dataframe(st.session_state['df_final'], use_container_width=True)
 
 st.divider()
 
@@ -478,7 +478,7 @@ with col_comp:
                 def color_severity(val):
                     color = '#ff4b4b' if val == 'High' else '#ffa500' if val == 'Medium' else '#00ffa3' if val == 'Low' else 'white'
                     return f'color: {color}'
-                st.dataframe(report.style.map(color_severity, subset=['Severity']), width='stretch')
+                st.dataframe(report.style.map(color_severity, subset=['Severity']), use_container_width=True)
             else:
                 st.info(report)
         else:
