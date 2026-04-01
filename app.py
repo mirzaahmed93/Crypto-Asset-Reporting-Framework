@@ -134,7 +134,8 @@ class AlchemyAdapter:
             transfers = requests.post(url, json=p, timeout=10).json().get("result", {}).get("transfers", [])
             if transfers:
                 tx = transfers[0]
-                return {"Hash": tx["hash"], "Block": int(tx["blockNum"], 16), "Value": tx.get("value", 0)}
+                ts = tx.get("metadata", {}).get("blockTimestamp", "Unknown")
+                return {"Hash": tx["hash"], "Block": int(tx["blockNum"], 16), "Value": tx.get("value", 0), "Timestamp": ts}
         except:
             pass
         return None
@@ -154,7 +155,8 @@ class AlchemyAdapter:
             transfers = requests.post(url, json=p, timeout=10).json().get("result", {}).get("transfers", [])
             if transfers:
                 tx = transfers[0]
-                return {"Hash": tx["hash"], "Block": int(tx["blockNum"], 16), "Value": tx.get("value", 0)}
+                ts = tx.get("metadata", {}).get("blockTimestamp", "Unknown")
+                return {"Hash": tx["hash"], "Block": int(tx["blockNum"], 16), "Value": tx.get("value", 0), "Timestamp": ts}
         except:
             pass
         return None
@@ -173,9 +175,11 @@ class AlchemyAdapter:
                         seen_hashes.add(tx["hash"])
                         raw = tx.get("rawContract", {})
                         contract = raw.get("address", "native") if raw else "native"
+                        ts = tx.get("metadata", {}).get("blockTimestamp", "Unknown")
                         txs.append({"Chain":name.upper(), "Hash":tx["hash"], "From":tx.get("from"),
                                     "Asset":tx.get("asset"), "Value":tx.get("value"), 
-                                    "Block":int(tx["blockNum"],16), "To":tx["to"], "Contract": contract})
+                                    "Block":int(tx["blockNum"],16), "To":tx["to"], "Contract": contract,
+                                    "Timestamp": ts})
                 except: pass
         return txs
 
@@ -398,6 +402,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 asset_txs = [t for t in tx_data if str(t.get('Contract', '')).lower() == s_addr and str(t.get('To', '')).lower() == s_wall]
             
             acquisition_found = False
+            acq_hash = "N/A"
+            acq_date = "N/A"
             if asset_txs:
                 first_tx = sorted(asset_txs, key=lambda x: x['Block'])[0]
                 price_addr = wrapper if is_native else addr
@@ -405,6 +411,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 gas_cost = engine.get_gas_cost(chain, first_tx['Hash'], first_tx['Block'])
                 acquisition_found = True
                 cost_basis_source = "Tx History (Phase 1)"
+                acq_hash = first_tx['Hash']
+                acq_date = first_tx.get('Timestamp', 'Unknown')
             else:
                 # Phase 2: Targeted scan for earliest inbound transfer
                 if is_native:
@@ -418,6 +426,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                     gas_cost = engine.get_gas_cost(chain, targeted['Hash'], targeted['Block'])
                     acquisition_found = True
                     cost_basis_source = "Targeted Scan (Phase 2)"
+                    acq_hash = targeted['Hash']
+                    acq_date = targeted.get('Timestamp', 'Unknown')
             
             total_pos_cost = (unit_cost * pos['Balance']) + gas_cost
             total_pos_value = pos["Balance"] * curr_price
@@ -433,6 +443,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 pos["Overall ROI (%)"] = "N/A"
                 pos["Price Source"] = "None (Probable Spam)"
                 pos["Cost Basis Source"] = "N/A"
+                pos["Acquisition TX Hash"] = "N/A"
+                pos["Acquisition Date (UTC)"] = "N/A"
             else:
                 # Legitimate asset — set audit status
                 if acquisition_found:
@@ -447,6 +459,8 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 pos["Value (USD)"] = round(total_pos_value, 2)
                 pos["Price Source"] = price_source
                 pos["Cost Basis Source"] = cost_basis_source if acquisition_found else "Not Found"
+                pos["Acquisition TX Hash"] = acq_hash
+                pos["Acquisition Date (UTC)"] = acq_date
                 
                 # Change calculation
                 if hist_price > 0:
