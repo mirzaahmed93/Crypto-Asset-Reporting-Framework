@@ -272,7 +272,7 @@ if os.path.exists(header_path):
     # Fixed deprecated parameter
     st.image(header_path, use_container_width=True)
 
-st.title("💎 Institutional Multi-Chain Audit")
+st.title("Institutional Multi-Chain Audit")
 st.caption("CARF-Compliant Reconciliation & Risk Discovery Engine")
 
 st.markdown("""
@@ -338,6 +338,7 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
     if not target_wallet.startswith("0x"):
         st.sidebar.error("Invalid Wallet: Must start with 0x")
     else:
+        _audit_start = time.time()
         with st.spinner(f"Auditing {target_wallet[:10]}... [Timeframe: {timeframe_input}]"):
             engine = UniversalAuditEngine(ALCHEMY_KEY)
             data = engine.run_audit(target_wallet)
@@ -486,22 +487,28 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             pos["Balance"] = round(pos["Balance"], 6)
                 
         df_final = pd.DataFrame(data)
+        _audit_elapsed = time.time() - _audit_start
+        _fmt = (f"{int(_audit_elapsed//60)}m {_audit_elapsed%60:.1f}s"
+                if _audit_elapsed >= 60 else f"{_audit_elapsed:.1f}s")
         st.session_state['df_final'] = df_final
         st.session_state['active_wallet'] = target_wallet
         st.session_state['total_value'] = total_value
         st.session_state['avg_roi'] = (total_gain / total_verified_value * 100) if total_verified_value > 0 else 0
-        st.success(f"Audit Complete for: `{target_wallet}`")
+        st.session_state['audit_duration'] = _fmt
+        st.success(f"Audit Complete for: `{target_wallet}` — completed in **{_fmt}**")
 
 # --- PERSISTENT RESULTS RENDERING ---
 if 'df_final' in st.session_state and 'active_wallet' in st.session_state:
     st.divider()
     st.subheader(f"📊 Audit Results: {st.session_state['active_wallet']}")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Portfolio Value", f"${st.session_state.get('total_value', 0):,.2f}")
     with col2:
         st.metric("Performance (ROI Incl. Gas)", f"{st.session_state.get('avg_roi', 0):+.2f}%")
+    with col3:
+        st.metric("⏱️ Audit Duration", st.session_state.get('audit_duration', '—'))
         
     st.subheader("Asset Breakdown")
     # Using modern width parameter for dataframe
@@ -515,15 +522,21 @@ with col_comp:
     if st.button("🛡️ Run Compliance Risk Audit", type="secondary"):
         if 'tx_data' in st.session_state:
             st.subheader("🛡️ Risk Severity Breakdown")
+            _carf_start = time.time()
             report = run_compliance_report(st.session_state['tx_data'], st.session_state.get('active_wallet', ''))
+            _carf_elapsed = time.time() - _carf_start
+            _carf_fmt = (f"{int(_carf_elapsed//60)}m {_carf_elapsed%60:.1f}s"
+                         if _carf_elapsed >= 60 else f"{_carf_elapsed:.1f}s")
             if isinstance(report, pd.DataFrame):
                 # Color code severity using modern .map
                 def color_severity(val):
                     color = '#ff4b4b' if val == 'High' else '#ffa500' if val == 'Medium' else '#00ffa3' if val == 'Low' else 'white'
                     return f'color: {color}'
                 st.dataframe(report.style.map(color_severity, subset=['Severity']), use_container_width=True)
+                st.caption(f"⏱️ CARF Compliance Audit completed in **{_carf_fmt}**")
             else:
                 st.info(report)
+                st.caption(f"⏱️ CARF Compliance Audit completed in **{_carf_fmt}**")
         else:
             st.warning("⚠️ Please run the Audit from the sidebar first!")
 
