@@ -292,7 +292,7 @@ Digital assets move seamlessly across chains. When an asset is received from an 
 Current reporting frameworks like the OECD's CARF framework, which has a POC done in another notebook, requires specific metadata (transaction hash, fiat equivalent values). Generic blockchain explorers do not provide the high level aggregation required for institutional or individual tax disclosures. *This presents a big gap to business service and other firms attempting to provide a holistic view of a wallet (user's) activity*.
 """)
 
-with st.expander("⚙️ Technical Implementation & Dependencies"):
+with st.expander("Technical Implementation & Dependencies"):
     st.markdown("""
     The framework relies on a modular "Adapter" architecture to ensure data integrity and real-time precision.
     *   **Alchemy API (Multi-Chain Indexer)**: Used as the primary gateway to the blockchain.
@@ -319,6 +319,14 @@ with st.expander("⚙️ Technical Implementation & Dependencies"):
     ii) Self-Transfer Detection: Flagging Round-tripping (where assets are moved between different wallets owned by the same user), a common pattern used in tax-loss harvesting or wash trading which requires specific disclosure.
     iii) Audit Trail Verification: Creating a permanent, time-stamped log of risks identified during the audit to ensure transparency and simplified documentation for authorities.
 
+    The CARF audit engine utilizes a deterministic two-pass scan over the wallet's transaction history to flag activity categorized under tax transparency, anti-money laundering (AML), and market integrity risks. The rules engine maps directly to the OECD's framework for digital asset reporting.
+    The engine first establishes a baseline of outbound activity by constructing a hash map of all assets transferred from the wallet within the lookback window. This map is then used in the second pass to detect anomalies. Specifically, the engine flags transactions that match the value and asset type of an outbound transfer but originate from a different sender address, which is indicative of potential wash trading or circular transfers designed to obscure the true beneficial owner.
+    The engine looks at:
+    - High-Value Transfers: Identifying individual transactions exceeding 50 tokens, which may trigger *"Enhanced Due Diligence" (EDD)* reporting requirements. Under the FATF Travel Rule integration within CARF, transactions crossing specific thresholds (typically $10,000 USD/EUR equivalent) trigger EDD to mitigate money laundering and tax evasion risks (OECD, 2022).
+    - Internal Round-Tripping: Is understood as "Self-Transfers" where the from_address and to_address are identical. Transferring assets between wallets owned by the same reporting entity is technically a non-taxable event. However, failing to accurately classify a self-transfer results in artificial realization events (phantom capital gains or losses). The framework requires Reporting Crypto-Asset Service Providers (RCASPs) to distinguish external transfers from internal logistical movements (OECD, 2022).
+    - Wash Trading Patterns: Flags identical inflow and outflow volumes for the same asset within the scanned period (volume matching). Wash trading (buying and selling identical assets simultaneously to create false volume or harvest tax losses) is a severe compliance violation. Tax administrations use CARF data primarily to ensure economic substance exists in reported taxable disposals. Identical in/out flows disrupt accurate Cost-Basis reporting and indicate potential market manipulation or artificial tax-loss harvesting (IOSCO, 2023).
+    - Bridge Activity: This is where the system detects the movement of assets from one blockchain to another (e.g., Ethereum to Solana) through the use of cross-chain bridge smart contracts (e.g., Stargate, Synapse, Across). Moving assets across blockchains obscures the flow of funds if not tracked via a unified ledger. CARF mandates the reporting of "Transfers of Relevant Crypto-Assets" regardless of the chain environment. Bridges are classified as high-risk vectors for blockchain hopping, meaning auditors must verify the destination address to ensure the entity retains ownership on the target chain (OECD CARF Rules, 2025).
+   
     By automating such checks, this tool removes the manual burden of checking every transaction hash, providing an immediate *"Risk Summary"* for the entire multi-chain portfolio. 
 
     ## 5. Export Audit Results:
@@ -406,13 +414,34 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             acq_hash = "N/A"
             acq_date = "N/A"
             if asset_txs:
-                first_tx = sorted(asset_txs, key=lambda x: x['Block'])[0]
+                # Weighted Average Cost (WAC) Execution
+                total_usd_spent = 0
+                total_gas_spent = 0
+                total_tokens_acquired = 0
                 price_addr = wrapper if is_native else addr
-                unit_cost = get_historical_price_moralis(price_addr, chain, first_tx['Block'])
-                gas_cost = engine.get_gas_cost(chain, first_tx['Hash'], first_tx['Block'])
+                
+                sorted_txs = sorted(asset_txs, key=lambda x: x['Block'])
+                first_tx = sorted_txs[0]
+                
+                for tx in sorted_txs:
+                    tx_val = float(tx.get('Value', 0) or 0)
+                    if tx_val > 0:
+                        tx_price = get_historical_price_moralis(price_addr, chain, tx['Block'])
+                        tx_gas = engine.get_gas_cost(chain, tx['Hash'], tx['Block'])
+                        total_usd_spent += (tx_price * tx_val)
+                        total_gas_spent += tx_gas
+                        total_tokens_acquired += tx_val
+
+                if total_tokens_acquired > 0:
+                    unit_cost = total_usd_spent / total_tokens_acquired
+                    gas_cost = total_gas_spent
+                else:
+                    unit_cost = get_historical_price_moralis(price_addr, chain, first_tx['Block'])
+                    gas_cost = engine.get_gas_cost(chain, first_tx['Hash'], first_tx['Block'])
+
                 acquisition_found = True
-                cost_basis_source = "Tx History (Phase 1)"
-                acq_hash = first_tx['Hash']
+                cost_basis_source = "Tx History (Phase 1 - WAC)"
+                acq_hash = first_tx['Hash']  # Anchor hash to oldest known entry point
                 acq_date = first_tx.get('Timestamp', 'Unknown')
             else:
                 # Phase 2: Targeted scan for earliest inbound transfer
@@ -552,7 +581,7 @@ with col_exp:
 
 st.divider()
 
-with st.expander("📚 Full Report: Limitations, Conclusion & Bibliography"):
+with st.expander("Full Report: Limitations, Conclusion & Bibliography"):
     st.markdown("""
     ## 6. Current Limitations:
     While this POC provides a robust framework for DeFi reconciliation, certain technical constraints remain:
@@ -600,7 +629,9 @@ with st.expander("📚 Full Report: Limitations, Conclusion & Bibliography"):
     *   **European Commission (2023).** *Markets in Crypto-Assets Regulation (MiCA).* [Structural requirements for asset service providers].
     *   **HMRC (2024).** *Cryptoassets Manual: Compliance and Reporting.* [UK specific tax treatment for DeFi and Staking].
     *   **IOSCO (2023).** *Policy Recommendations for Decentralized Finance (DeFi).* Final Report FR08/23.
+    *   **IOSCO (2023).** *Policy Recommendations for Crypto and Digital Asset Markets (Market Integrity & Wash Trading Definitions).*
     *   **Messari Crypto (2024).** *State of DeFi: Q1 2024 Analysis.* [Data on TVL and Liquidity Pool concentration].
-    *   **OECD (2022).** *Crypto-Asset Reporting Framework and Amendments to the Common Reporting Standard.* [Standard for automatic exchange of tax information].
+    *   **OECD (2022).** *Crypto-Asset Reporting Framework and Amendments to the Common Reporting Standard, Section II: Reporting Requirements.*
+    *   **OECD (2022).** *CARF Section IV: Relevant Crypto-Asset Definitions (Transfers to External vs Internal Wallets).*
     *   **Zetzsche, D. A., Arner, D. W., & Buckley, R. P. (2020).** *Decentralized Finance: The Future of Financial Regulation.* University of Luxembourg Law Working Paper.
     """)
