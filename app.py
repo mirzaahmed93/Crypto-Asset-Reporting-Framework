@@ -297,6 +297,7 @@ with st.expander("Technical Implementation & Dependencies"):
     The framework relies on a modular "Adapter" architecture to ensure data integrity and real-time precision.
     *   **Alchemy API (Multi-Chain Indexer)**: Used as the primary gateway to the blockchain.
     *   **Moralis API (Historical Price Engine)**: Essential for P&L calculations. It allows the tool to query the price of a specific token at a specific **Block Number**, rather than a generic timestamp.
+    *   **Dexscreener API (Live DEX Fallback)**: Used as a fallback for price discovery when Moralis API prices for assets are unavailable.
     *   **Streamlit & Pandas**: Enables the GUI experience and vectorized performance calculations.
 
     ### 3.2 Advanced GUI for P&L Calculations And Analysis:
@@ -312,6 +313,8 @@ with st.expander("Technical Implementation & Dependencies"):
     This tool addresses this through a multi-source price verification engine. Each non-native token is queried against two independent pricing APIs — Moralis (centralised index) and Dexscreener (decentralised exchange aggregator). If both sources return a price of $0.00, the asset is flagged as "Probable Spam (No Market)" with a value of $0.00. This heuristic is market-data driven rather than rule-based (i.e., it does not rely on name-matching logic against known assets), ensuring that the classification is both scalable and defensible under audit scrutiny.
 
     To resolve the "Cost-Basis Fragmentation" gap described in Section 2(ii), the engine employs a two-step acquisition discovery process. Phase 1 scans the most recent N transactions (set by the "Tx Limit" slider) for inbound transfers matching each asset. If no acquisition is found within this window, which can be a common scenario for long-held positions, the engine initiates a Phase 2 targeted scan, querying the blockchain indexer specifically for the earliest-ever inbound transfer of that particular token to the target wallet. This eliminates the need for expensive full-history scans whilst still recovering the original cost basis for assets acquired outside the initial audit window. The cost of this approach is minimal: one additional API call per unresolved asset, compared to potentially hundreds with a brute-force history expansion.
+
+    **The audit engine calculates Return on Investment (ROI) using the Weighted Average Cost (WAC) methodology for assets discovered during the Phase 1 historical scan (CFA Institute, 2020). Unlike basic portfolio trackers that anchor cost-basis to a single chronological entry point, the engine loops through all inbound tranches over the selected timeframe. It aggregates the total USD deployed (including gas expenditure) against the total tokens acquired, generating a blended unit_cost. This volume-weighted approach smooths out entry-point volatility and is the preferred standard for institutional portfolio managers assessing true capital efficiency across multiple deployment phases.**
 
     ## 4. Compliance & Risk Audit
     This section implements an automated Risk Evaluation Engine that scans the transaction history for patterns that trigger regulatory concern under the CARF framework. Specifically, the engine focuses on:
@@ -625,6 +628,7 @@ with st.expander("Full Report: Limitations, Conclusion & Bibliography"):
 
     *   **Bank for International Settlements (BIS) (2023).** *DeFi: Ecosystem, Risks and Options for Regulation.* Monetary and Economic Department.
     *   **Chainalysis (2023).** *The 2023 Geography of Cryptocurrency Report.* [Patterns of cross-border DeFi flow and self-custody risk].
+    *   **CFA Institute (2020).** *GIPS Standards for Firms.* [Standard for calculating ROI using the Weighted Average Cost (WAC) methodology].
     *   **DefiLlama (2026).** *Total Value Locked and Protocol Analytics.* [On-chain attribution data for LP reconciliation].
     *   **European Commission (2023).** *Markets in Crypto-Assets Regulation (MiCA).* [Structural requirements for asset service providers].
     *   **HMRC (2024).** *Cryptoassets Manual: Compliance and Reporting.* [UK specific tax treatment for DeFi and Staking].
