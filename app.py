@@ -22,6 +22,9 @@ DEXSCREENER_NATIVE_WRAPPERS = {
     "BASE": "0x4200000000000000000000000000000000000006"       # WETH on Base
 }
 
+import functools
+
+@functools.lru_cache(maxsize=1024)
 def get_historical_price_moralis(address, chain, block=None):
     if not MORALIS_KEY: return 0
     m_chain = {"ETHEREUM": "eth", "POLYGON": "polygon", "BASE": "base"}.get(chain.upper(), "eth")
@@ -33,6 +36,7 @@ def get_historical_price_moralis(address, chain, block=None):
         return float(r.get("usdPrice", 0))
     except: return 0
 
+@functools.lru_cache(maxsize=32)
 def get_latest_block(chain):
     url = {"ETHEREUM": f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_KEY}",
            "POLYGON": f"https://polygon-mainnet.g.alchemy.com/v2/{ALCHEMY_KEY}",
@@ -357,8 +361,9 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             
             st.session_state['tx_data'] = tx_data  # Store for compliance module
 
-        total_value = 0; total_gain = 0; total_verified_value = 0
-        for pos in data:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def process_pos(pos):
             chain = pos["Chain"]
             addr = pos["Address"]
             is_native = (addr == "native" or addr is None)
@@ -374,31 +379,29 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             }
             hist_block = max(1, latest_block - block_offsets.get(timeframe_input, 7200))
             
-            # --- PRICE DISCOVERY (Moralis → Dexscreener fallback for ALL asset types) ---
+            # --- PRICE DISCOVERY (Dexscreener fallback → Moralis) ---
             price_source = "Unknown"
             if is_native:
                 wrapper = NATIVE_WRAPPERS.get(chain.upper(), NATIVE_WRAPPERS["ETHEREUM"])
                 ds_wrapper = DEXSCREENER_NATIVE_WRAPPERS.get(chain.upper(), DEXSCREENER_NATIVE_WRAPPERS["ETHEREUM"])
-                curr_price = get_historical_price_moralis(wrapper, chain)
+                curr_price = get_dexscreener_price(ds_wrapper, chain)
                 if curr_price > 0:
-                    price_source = "Moralis (Block-Precise)"
+                    price_source = "Dexscreener (Live DEX)"
                 else:
-                    # Dexscreener fallback — no hardcoded estimates
-                    curr_price = get_dexscreener_price(ds_wrapper, chain)
+                    curr_price = get_historical_price_moralis(wrapper, chain)
                     if curr_price > 0:
-                        price_source = "Dexscreener (Live DEX)"
+                        price_source = "Moralis (Block-Precise)"
                     else:
                         price_source = "Unpriced (No Market)"
                 hist_price = get_historical_price_moralis(wrapper, chain, hist_block) or curr_price
             else:
-                curr_price = get_historical_price_moralis(addr, chain)
+                curr_price = get_dexscreener_price(addr, chain)
                 if curr_price > 0:
-                    price_source = "Moralis (Block-Precise)"
+                    price_source = "Dexscreener (Live DEX)"
                 else:
-                    curr_price = get_dexscreener_price(addr, chain)
+                    curr_price = get_historical_price_moralis(addr, chain)
                     if curr_price > 0:
-                        price_source = "Dexscreener (Live DEX)"
-                    # If still 0 → spam path handles label below
+                        price_source = "Moralis (Block-Precise)"
                 hist_price = get_historical_price_moralis(addr, chain, hist_block)
             
             # --- COST BASIS DISCOVERY (Broad scan → Targeted scan) ---
@@ -466,6 +469,10 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             total_pos_value = pos["Balance"] * curr_price
             
             # --- AUDIT STATUS & SPAM DETECTION ---
+            pos["_raw_total_pos_value"] = total_pos_value
+            pos["_raw_total_pos_cost"] = total_pos_cost
+            pos["_raw_acquisition_found"] = acquisition_found
+            
             if curr_price == 0 and not is_native:
                 # Both Moralis AND Dexscreener returned $0 → Probable Spam
                 pos["Audit Status"] = "🚫 Probable Spam (No Market)"
@@ -509,15 +516,24 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                     pos["Gas Expense (USD)"] = "N/A"
                     pos["Overall ROI (%)"] = "N/A (No Acquisition Found)"
             
-            if total_pos_value > 0:
-                total_value += total_pos_value
-                if acquisition_found:
-                    total_verified_value += total_pos_value
-                    total_gain += (total_pos_value - total_pos_cost) if total_pos_cost > 0 else 0
-                
             # Round balance for display
             pos["Balance"] = round(pos["Balance"], 6)
-                
+
+        # Execute Parallel Processing (Limit to 5 workers to stay under Moralis rate limit safely)
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            list(executor.map(process_pos, data))
+            
+        # Thread-safe aggregations post-map
+        total_value = sum(p.get("_raw_total_pos_value", 0) for p in data)
+        total_verified_value = sum(p.get("_raw_total_pos_value", 0) for p in data if p.get("_raw_acquisition_found", False))
+        total_gain = sum((p.get("_raw_total_pos_value", 0) - p.get("_raw_total_pos_cost", 0)) for p in data if p.get("_raw_acquisition_found", False) and p.get("_raw_total_pos_cost", 0) > 0)
+        
+        # Cleanup temp vars
+        for p in data:
+            p.pop("_raw_total_pos_value", None)
+            p.pop("_raw_total_pos_cost", None)
+            p.pop("_raw_acquisition_found", None)
+            
         df_final = pd.DataFrame(data)
         _audit_elapsed = time.time() - _audit_start
         _fmt = (f"{int(_audit_elapsed//60)}m {_audit_elapsed%60:.1f}s"
