@@ -419,6 +419,7 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             acquisition_found = False
             acq_hash = "N/A"
             acq_date = "N/A"
+            acq_amount = "N/A"
             if asset_txs:
                 # Weighted Average Cost (WAC) Execution
                 total_usd_spent = 0
@@ -441,9 +442,11 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                 if total_tokens_acquired > 0:
                     unit_cost = total_usd_spent / total_tokens_acquired
                     gas_cost = total_gas_spent
+                    acq_amount = total_tokens_acquired
                 else:
                     unit_cost = get_historical_price_moralis(price_addr, chain, first_tx['Block'])
                     gas_cost = engine.get_gas_cost(chain, first_tx['Hash'], first_tx['Block'])
+                    acq_amount = float(first_tx.get('Value', 0) or 0)
 
                 acquisition_found = True
                 cost_basis_source = "Tx History (Phase 1 - WAC)"
@@ -464,6 +467,7 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                     cost_basis_source = "Targeted Scan (Phase 2)"
                     acq_hash = targeted['Hash']
                     acq_date = targeted.get('Timestamp', 'Unknown')
+                    acq_amount = float(targeted.get('Value', 0) or 0)
             
             total_pos_cost = (unit_cost * pos['Balance']) + gas_cost
             total_pos_value = pos["Balance"] * curr_price
@@ -476,13 +480,15 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
             if curr_price == 0 and not is_native:
                 # Both Moralis AND Dexscreener returned $0 → Probable Spam
                 pos["Audit Status"] = "🚫 Probable Spam (No Market)"
-                pos["Price (USD)"] = "$0.00 (Unpriced)"
+                pos["Current Price (USD)"] = "$0.00 (Unpriced)"
                 pos["Value (USD)"] = "$0.00"
                 pos[f"Change ({timeframe_input}) (%)"] = "N/A"
                 pos["Gas Expense (USD)"] = "N/A"
                 pos["Overall ROI (%)"] = "N/A"
                 pos["Price Source"] = "None (Probable Spam)"
                 pos["Cost Basis Source"] = "N/A"
+                pos["Cost Basis Unit Price (USD)"] = "N/A"
+                pos["Acquisition Amount"] = "N/A"
                 pos["Acquisition TX Hash"] = "N/A"
                 pos["Acquisition Date (UTC)"] = "N/A"
             else:
@@ -495,10 +501,12 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
                     pos["Audit Status"] = "✅ Verified"
                 
                 # Price & Value
-                pos["Price (USD)"] = round(curr_price, 2)
+                pos["Current Price (USD)"] = round(curr_price, 2)
                 pos["Value (USD)"] = round(total_pos_value, 2)
                 pos["Price Source"] = price_source
                 pos["Cost Basis Source"] = cost_basis_source if acquisition_found else "Not Found"
+                pos["Cost Basis Unit Price (USD)"] = round(unit_cost, 2) if acquisition_found else "N/A"
+                pos["Acquisition Amount"] = round(acq_amount, 6) if isinstance(acq_amount, (int, float)) else acq_amount
                 pos["Acquisition TX Hash"] = acq_hash
                 pos["Acquisition Date (UTC)"] = acq_date
                 
