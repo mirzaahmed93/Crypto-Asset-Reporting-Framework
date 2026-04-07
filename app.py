@@ -302,7 +302,7 @@ with st.expander("Technical Implementation & Dependencies"):
     *   **Alchemy API (Multi-Chain Indexer)**: Used as the primary gateway to the blockchain.
     *   **Moralis API (Historical Price Engine)**: Essential for P&L calculations. It allows the tool to query the price of a specific token at a specific **Block Number**, rather than a generic timestamp.
     *   **Dexscreener API (Live DEX Fallback)**: Used as a fallback for price discovery when Moralis API prices for assets are unavailable.
-    *   **Streamlit & Pandas**: Enables the GUI experience and vectorized performance calculations.
+    *   **Streamlit & Pandas**: Enables the GUI experience and vectorised performance calculations.
 
     ### 3.2 Advanced GUI for P&L Calculations And Analysis:
     This section provides a user-friendly Control Dashboard that allows the user to interact with the audit logic without writing any code. Through this GUI, the user can input specific wallet addresses, set transaction history limits (to control data depth), and toggle between different performance timeframes (24h, 1w, or 1m) to see how the portfolio has evolved across time.
@@ -321,6 +321,11 @@ with st.expander("Technical Implementation & Dependencies"):
     **The audit engine calculates Return on Investment (ROI) using the Weighted Average Cost (WAC) methodology for assets discovered during the Phase 1 historical scan (CFA Institute, 2020). Unlike basic portfolio trackers that anchor cost-basis to a single chronological entry point, the engine loops through all inbound tranches over the selected timeframe. It aggregates the total USD deployed (including gas expenditure) against the total tokens acquired, generating a blended unit_cost. This volume-weighted approach smooths out entry-point volatility and is the preferred standard for institutional portfolio managers assessing true capital efficiency across multiple deployment phases.**
 
     ## 4. Compliance & Risk Audit
+    To meet institutional grade audit-readiness, the tool moves beyond simple ROI percentages by explicitly unwrapping the underlying metadata of every calculation. 
+    *   **Acquisition Amount:** Exposes the exact token quantity processed internally by a smart contract. Public block explorer headers often mask internal token transfers during complex multi-hop trades (e.g., a Dex swap routed via Uniswap). Exposing this raw amount allows auditors to perfectly reconcile the target wallet's inbound payload against the parent transaction hash.
+    *   **Cost Basis Unit Price (USD):** Defines the exact fiat price anchor discovered at the historical block height of the acquisition, providing the mandatory "Original Value" component required for accurate tax-loss or capital-gains reporting.
+    *   **Current Price (USD):** The present Fair Market Value (FMV) assessed dynamically via live AMM liquidity (Dexscreener) or block-precise historical endpoints (Moralis). By comparing the Cost Basis Unit Price directly against the Current Price, stakeholders can instantly verify the mathematical integrity of the final ROI and Change logic.
+
     This section implements an automated Risk Evaluation Engine that scans the transaction history for patterns that trigger regulatory concern under the CARF framework. Specifically, the engine focuses on:
     i) High-Value Transfers: Identifying individual transactions exceeding 50 tokens, which may trigger *"Enhanced Due Diligence" (EDD)* reporting requirements.
     ii) Self-Transfer Detection: Flagging Round-tripping (where assets are moved between different wallets owned by the same user), a common pattern used in tax-loss harvesting or wash trading which requires specific disclosure.
