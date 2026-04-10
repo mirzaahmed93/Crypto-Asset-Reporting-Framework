@@ -1,4 +1,4 @@
-import os, requests, time, pandas as pd, base64
+import os, requests, time, pandas as pd, base64, datetime
 import streamlit as st
 
 # MUST BE FIRST STREAMLIT COMMAND
@@ -556,6 +556,7 @@ if st.sidebar.button("🔍 Run Advanced Portfolio Audit", type="primary"):
         st.session_state['total_value'] = total_value
         st.session_state['avg_roi'] = (total_gain / total_verified_value * 100) if total_verified_value > 0 else 0
         st.session_state['audit_duration'] = _fmt
+        st.session_state['audit_timestamp'] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         st.success(f"Audit Complete for: `{target_wallet}` — completed in **{_fmt}**")
 
 # --- PERSISTENT RESULTS RENDERING ---
@@ -563,13 +564,15 @@ if 'df_final' in st.session_state and 'active_wallet' in st.session_state:
     st.divider()
     st.subheader(f"📊 Audit Results: {st.session_state['active_wallet']}")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Portfolio Value", f"${st.session_state.get('total_value', 0):,.2f}")
     with col2:
         st.metric("Performance (ROI Incl. Gas)", f"{st.session_state.get('avg_roi', 0):+.2f}%")
     with col3:
         st.metric("⏱️ Audit Duration", st.session_state.get('audit_duration', '—'))
+    with col4:
+        st.metric("📅 Completed At", st.session_state.get('audit_timestamp', '—'))
         
     st.subheader("Asset Breakdown")
     # Using modern width parameter for dataframe
